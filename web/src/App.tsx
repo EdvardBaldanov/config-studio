@@ -12,6 +12,7 @@ import { CommandConfirmModal } from './components/CommandConfirmModal';
 import { PreSaveGuardModal } from './components/PreSaveGuardModal';
 import { api, PreSaveGuardError } from './services/api';
 import { pluginManager, PluginSystemState } from './services/pluginLoader';
+import { showGlobalToast } from './components/ui';
 import { Settings, FileItem, OpenFile, FileRevision, GuardIssue, GuardValidationResult } from './types';
 import { parseContentToOutline } from './utils/astParser';
 import { translations, Language, DEFAULT_LANGUAGE } from './utils/i18n';
@@ -108,7 +109,7 @@ export const App: React.FC = () => {
         }
       },
       showNotification: (msg, type) => {
-        console.log(`[Plugin Notification ${type}]:`, msg);
+        showGlobalToast(msg, (type as any) || 'info');
       },
       confirmCommand: (command: string) => {
         return new Promise<boolean>((resolve) => {
@@ -388,6 +389,7 @@ export const App: React.FC = () => {
       setIsPreSaveGuardOpen(false);
       setPreSaveGuardIssue(null);
       pluginManager.notifyFileSave(currentFile);
+      showGlobalToast(`${currentFile.name} успешно сохранен`, 'success');
     } catch (err: any) {
       if (err instanceof PreSaveGuardError) {
         setPreSaveGuardIssue(err.guard);
@@ -496,6 +498,7 @@ export const App: React.FC = () => {
   const handleSaveSettings = async (newSettings: Partial<Settings>) => {
     const updated = await api.updateSettings(newSettings);
     setSettings(updated);
+    showGlobalToast('Настройки успешно обновлены', 'success');
   };
 
   const handleUploadIcon = async (file: File) => {

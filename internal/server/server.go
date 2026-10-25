@@ -173,9 +173,9 @@ func (s *Server) setupRoutes() {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = io.Copy(w, indexFile)
 		})
-		s.handler = s.logMiddleware(fullMux)
+		s.handler = s.gzipMiddleware(s.logMiddleware(fullMux))
 	} else {
-		s.handler = s.logMiddleware(apiHandler)
+		s.handler = s.gzipMiddleware(s.logMiddleware(apiHandler))
 	}
 }
 

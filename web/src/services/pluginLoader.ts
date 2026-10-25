@@ -488,6 +488,11 @@ class PluginLoader {
       },
       getPluginSettings: (pluginId: string) => api.getPluginSettings(pluginId),
       savePluginSettings: (pluginId: string, settings: Record<string, any>) => api.savePluginSettings(pluginId, settings),
+      ui: {
+        toast: (message: string, type?: 'info' | 'success' | 'error' | 'warning', title?: string) => {
+          this.notificationHandler(message, type as any);
+        },
+      },
     };
   }
 

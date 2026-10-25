@@ -134,7 +134,7 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
   const manifestSettings: PluginSettingField[] = selectedPlugin?.settings || [];
 
   return (
-    <div className="flex h-[560px] overflow-hidden">
+    <div className="flex flex-1 h-full overflow-hidden min-h-0">
       {/* Left Column: Plugin Names List with Scrolling (~250px) */}
       <div className="w-64 border-r border-base-border flex flex-col bg-gray-50/70 dark:bg-black/25 shrink-0">
         {/* Search header */}

@@ -15,5 +15,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'lucide-react'],
+          'vendor-parsers': ['yaml', 'smol-toml'],
+          'vendor-monaco': ['@monaco-editor/react'],
+        },
+      },
+    },
   },
 });

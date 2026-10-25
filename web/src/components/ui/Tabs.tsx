@@ -1,4 +1,5 @@
 import React from 'react';
+import { ScrollArea } from './ScrollArea';
 
 export interface TabItem {
   id: string;
@@ -23,8 +24,11 @@ export const Tabs: React.FC<TabsProps> = ({
   accentColor,
 }) => {
   return (
-    <div
-      className={`flex border-b border-base-border bg-gray-50/50 dark:bg-black/10 overflow-x-auto gap-1 custom-scrollbar shrink-0 select-none ${className}`}
+    <ScrollArea
+      orientation="horizontal"
+      horizontalWheel
+      className={`border-b border-base-border bg-gray-50/50 dark:bg-black/10 shrink-0 select-none ${className}`}
+      contentClassName="flex gap-1"
     >
       {items.map((item) => {
         const isSelected = activeId === item.id;
@@ -49,6 +53,6 @@ export const Tabs: React.FC<TabsProps> = ({
           </button>
         );
       })}
-    </div>
+    </ScrollArea>
   );
 };

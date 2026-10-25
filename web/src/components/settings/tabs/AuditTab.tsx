@@ -10,6 +10,7 @@ import {
 import { AuditEvent } from '../../../types';
 import { api } from '../../../services/api';
 import { telemetry } from '../../../services/telemetry';
+import { ScrollArea } from '../../ui';
 
 interface AuditTabProps {
   t: any;
@@ -212,16 +213,21 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
           </button>
         </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5 custom-scrollbar">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400 mr-1">{t.auditCategoryAll}:</span>
+        {/* Category Filter Pills with Mouse Wheel Horizontal Scrolling */}
+        <ScrollArea
+          orientation="horizontal"
+          horizontalWheel
+          className="py-0.5 select-none"
+          contentClassName="flex items-center gap-1.5 text-xs"
+        >
+          <span className="text-[11px] text-gray-500 dark:text-gray-400 mr-1 shrink-0">{t.auditCategoryAll}:</span>
           <button
             type="button"
             onClick={() => {
               setAuditCategory('');
               loadAuditLogs(auditSeverity, auditSearch, '');
             }}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer shrink-0 ${
               auditCategory === ''
                 ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
                 : 'text-gray-400 hover:text-white bg-black/5 dark:bg-white/5'
@@ -235,7 +241,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
               setAuditCategory('error');
               loadAuditLogs(auditSeverity, auditSearch, 'error');
             }}
-            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer shrink-0 ${
               auditCategory === 'error'
                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                 : 'text-gray-400 hover:text-rose-300 bg-black/5 dark:bg-white/5'
@@ -250,7 +256,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
               setAuditCategory('user');
               loadAuditLogs(auditSeverity, auditSearch, 'user');
             }}
-            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer shrink-0 ${
               auditCategory === 'user'
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                 : 'text-gray-400 hover:text-emerald-300 bg-black/5 dark:bg-white/5'
@@ -265,7 +271,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
               setAuditCategory('network');
               loadAuditLogs(auditSeverity, auditSearch, 'network');
             }}
-            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer shrink-0 ${
               auditCategory === 'network'
                 ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
                 : 'text-gray-400 hover:text-indigo-300 bg-black/5 dark:bg-white/5'
@@ -280,7 +286,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
               setAuditCategory('system');
               loadAuditLogs(auditSeverity, auditSearch, 'system');
             }}
-            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center space-x-1 cursor-pointer shrink-0 ${
               auditCategory === 'system'
                 ? 'bg-slate-700/60 text-slate-200 border border-slate-600'
                 : 'text-gray-400 hover:text-slate-300 bg-black/5 dark:bg-white/5'
@@ -289,7 +295,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
             <span>⚙️</span>
             <span>{t.auditCatSystem || 'Система'}</span>
           </button>
-        </div>
+        </ScrollArea>
       </div>
 
       {/* Total Count and Status */}

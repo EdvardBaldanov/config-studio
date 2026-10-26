@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -41,6 +42,14 @@ type Server struct {
 	handler      http.Handler
 	sessionsMu   sync.RWMutex
 	sessions     map[string]time.Time
+}
+
+func init() {
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+	_ = mime.AddExtensionType(".json", "application/json")
+	_ = mime.AddExtensionType(".svg", "image/svg+xml")
+	_ = mime.AddExtensionType(".js", "application/javascript")
+	_ = mime.AddExtensionType(".mjs", "application/javascript")
 }
 
 func NewServer(cfg Config, cfgMgr *config.Manager, fsSvc *appfs.Service, pMgr *plugin.Manager, pRunner *plugin.Runner, auditLogger *audit.Logger, secMgr *secrets.Manager) *Server {
@@ -159,6 +168,14 @@ func (s *Server) setupRoutes() {
 
 			// Check if file exists in embedded FS
 			if _, err := fs.Stat(s.cfg.WebFS, path); err == nil {
+				if strings.HasSuffix(path, ".webmanifest") || strings.HasSuffix(path, "manifest.json") {
+					w.Header().Set("Content-Type", "application/manifest+json; charset=utf-8")
+					w.Header().Set("Cache-Control", "no-cache")
+				} else if path == "sw.js" {
+					w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+					w.Header().Set("Service-Worker-Allowed", "/")
+					w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}

@@ -539,7 +539,7 @@ export const App: React.FC = () => {
   );
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-base text-gray-900 dark:text-gray-100 select-none">
+    <div className="h-full w-full h-[100dvh] flex flex-col overflow-hidden bg-base text-gray-900 dark:text-gray-100 select-none">
       {/* Top Header */}
       <Header
         settings={settings}
@@ -589,7 +589,7 @@ export const App: React.FC = () => {
         />
 
         {/* Center: Monaco Editor with multi-tabs & full-width tag bar & bottom dock */}
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
           <Editor
             tabs={tabs}
             activeFilePath={activeTabPath}

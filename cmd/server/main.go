@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -30,6 +31,9 @@ func main() {
 		authPass      = flag.String("auth-pass", "", "Basic Auth password (or set CONFIG_AUTH_PASS)")
 		installFlag   = flag.Bool("install", false, "Install Config Studio as a system service (auto-detects systemd or OpenRC)")
 		uninstallFlag = flag.Bool("uninstall", false, "Uninstall Config Studio service and binary")
+		tlsFlag       = flag.Bool("tls", false, "Enable HTTPS with auto-generated self-signed certificate (or set CONFIG_TLS=true)")
+		tlsCert       = flag.String("tls-cert", "", "Path to custom TLS certificate file (optional)")
+		tlsKey        = flag.String("tls-key", "", "Path to custom TLS private key file (optional)")
 	)
 	flag.Parse()
 
@@ -116,6 +120,18 @@ func main() {
 
 	appServer := server.NewServer(srvConfig, cfgMgr, fsSvc, pluginMgr, pluginRunner, auditLogger, secretsMgr)
 
+	useTLS := *tlsFlag || os.Getenv("CONFIG_TLS") == "true" || os.Getenv("CONFIG_TLS") == "1"
+	certFile := *tlsCert
+	keyFile := *tlsKey
+
+	if useTLS && (certFile == "" || keyFile == "") {
+		var err error
+		certFile, keyFile, err = server.EnsureSelfSignedCert(filepath.Join(*dataDir, "certs"))
+		if err != nil {
+			log.Fatalf("Failed to initialize self-signed TLS certs: %v", err)
+		}
+	}
+
 	addr := fmt.Sprintf("0.0.0.0:%d", *port)
 	httpServer := &http.Server{
 		Addr:         addr,
@@ -130,16 +146,30 @@ func main() {
 
 	go func() {
 		log.Printf("==================================================")
-		log.Printf(" Config Studio is running at http://%s", addr)
+		protocol := "http"
+		if useTLS {
+			protocol = "https"
+		}
+		log.Printf(" Config Studio is running at %s://%s", protocol, addr)
 		log.Printf(" Working directory: %s", *workdir)
 		log.Printf(" Data directory:    %s", *dataDir)
+		if useTLS {
+			log.Printf(" TLS / HTTPS:       enabled (cert: %s)", certFile)
+		} else {
+			log.Printf(" TLS / HTTPS:       disabled (run with --tls for HTTPS/PWA)")
+		}
 		if *authUser != "" {
 			log.Printf(" Basic Auth:        enabled (user: %s)", *authUser)
 		} else {
 			log.Printf(" Basic Auth:        disabled")
 		}
 		log.Printf("==================================================")
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := func() error {
+			if useTLS {
+				return httpServer.ListenAndServeTLS(certFile, keyFile)
+			}
+			return httpServer.ListenAndServe()
+		}(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server listen error: %v", err)
 		}
 	}()

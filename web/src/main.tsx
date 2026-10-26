@@ -9,18 +9,24 @@ import './index.css';
 // Initialize global structured telemetry and crash capture
 telemetry.init();
 
-// Register PWA Service Worker in production
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
+// Register PWA Service Worker
+if ('serviceWorker' in navigator) {
+  const registerSW = () => {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('/sw.js', { scope: '/' })
       .then((reg) => {
         console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
       })
       .catch((err) => {
         console.warn('[PWA] ServiceWorker registration failed:', err);
       });
-  });
+  };
+
+  if (document.readyState === 'complete') {
+    registerSW();
+  } else {
+    window.addEventListener('load', registerSW);
+  }
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

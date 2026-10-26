@@ -255,7 +255,7 @@ export const Editor: React.FC<EditorProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-base">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-base">
       {/* Multi-Tab Bar & Action Toolbar */}
       <div className="h-10 bg-base-surface border-b border-base-border flex items-center justify-between px-2 select-none flex-shrink-0">
         <div className="flex items-center space-x-1 overflow-x-auto">
@@ -390,7 +390,7 @@ export const Editor: React.FC<EditorProps> = ({
       )}
 
       {/* Monaco Code Editor */}
-      <div className="flex-1 w-full h-full min-h-0">
+      <div className="flex-1 w-full min-h-0 overflow-hidden">
         <MonacoEditor
           height="100%"
           language={getLanguage(currentFile.name)}
@@ -417,7 +417,7 @@ export const Editor: React.FC<EditorProps> = ({
       </div>
 
       {/* Mobile Developer Accessory Bar (touch keys for config editing) */}
-      <div className="md:hidden flex items-center gap-1.5 px-2 py-1.5 bg-base-surface border-t border-base-border overflow-x-auto select-none shrink-0 z-10 custom-scrollbar">
+      <div className="md:hidden flex items-center gap-1.5 px-2 py-1.5 min-h-[40px] bg-base-surface border-t border-base-border overflow-x-auto select-none shrink-0 z-20 custom-scrollbar">
         <button
           type="button"
           onClick={handleMobileTab}

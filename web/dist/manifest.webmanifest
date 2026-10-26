@@ -1,21 +1,16 @@
 {
   "name": "Config Studio",
   "short_name": "ConfigStudio",
+  "id": "/",
   "description": "Ultra-fast Modern Cloud Config Editor & Management Suite",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#161b22",
-  "theme_color": "#00d2b4",
+  "theme_color": "#161b22",
   "categories": ["developer", "utilities", "productivity"],
   "icons": [
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",

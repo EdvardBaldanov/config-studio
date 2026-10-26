@@ -442,10 +442,10 @@ export const BottomDockStrip: React.FC<BottomDockStripProps> = ({
         </div>
       )}
 
-      {/* The Always-Visible Strip Bar (Height 28px) */}
-      <div className="h-7 px-2 bg-[#161b22] border-t border-[#30363d] flex items-center justify-between text-xs select-none">
+      {/* The Always-Visible Strip Bar */}
+      <div className="min-h-[32px] sm:min-h-[28px] h-8 sm:h-7 px-2 bg-[#161b22] border-t border-[#30363d] flex items-center justify-between text-xs select-none shrink-0 pb-[env(safe-area-inset-bottom)]">
         {/* Left: Tab Buttons */}
-        <div className="flex items-center space-x-1 overflow-x-auto">
+        <div className="flex items-center space-x-1 overflow-x-auto custom-scrollbar flex-1 min-w-0 pr-1">
           {/* Plugin Tabs (Terminal, Docker Logs, etc.) */}
           {panels.map((p) => {
             const isActive = isOpen && activePanelId === p.id;

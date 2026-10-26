@@ -60,6 +60,8 @@ export const App: React.FC = () => {
   const [isBottomDockOpen, setIsBottomDockOpen] = useState<boolean>(false);
   const [activeBottomDockId, setActiveBottomDockId] = useState<string>('problems');
   const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
+  const [isMobileFileDrawerOpen, setIsMobileFileDrawerOpen] = useState<boolean>(false);
+  const [isMobileOutlineDrawerOpen, setIsMobileOutlineDrawerOpen] = useState<boolean>(false);
 
   // Open bottom dock if a plugin requested a bottom panel
   useEffect(() => {
@@ -562,6 +564,9 @@ export const App: React.FC = () => {
         onLogout={authStatus.authRequired ? handleLogout : undefined}
         onOpenFile={openFile}
         onNavigateDir={loadDir}
+        onToggleMobileFiles={() => setIsMobileFileDrawerOpen((prev) => !prev)}
+        onToggleMobileOutline={() => setIsMobileOutlineDrawerOpen((prev) => !prev)}
+        isMobileOutlineOpen={isMobileOutlineDrawerOpen}
       />
 
       {/* Main Workspace */}
@@ -579,6 +584,8 @@ export const App: React.FC = () => {
           onDeleteItem={handleDeleteItem}
           onRenameItem={handleRenameItem}
           onUploadFile={handleUploadFile}
+          isMobileDrawerOpen={isMobileFileDrawerOpen}
+          onCloseMobileDrawer={() => setIsMobileFileDrawerOpen(false)}
         />
 
         {/* Center: Monaco Editor with multi-tabs & full-width tag bar & bottom dock */}
@@ -644,6 +651,8 @@ export const App: React.FC = () => {
           error={parseError}
           settings={settings}
           onSelectLine={handleJumpToLine}
+          isMobileDrawerOpen={isMobileOutlineDrawerOpen}
+          onCloseMobileDrawer={() => setIsMobileOutlineDrawerOpen(false)}
         />
       </div>
 

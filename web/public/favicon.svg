@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c2128" />
+      <stop offset="100%" stop-color="#0e1116" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2d0" />
+      <stop offset="100%" stop-color="#00a38b" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Squircle App Container -->
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#bgGrad)" stroke="#30363d" stroke-width="8" />
+
+  <!-- Code Tree / ASCII Brand Glyph -->
+  <g transform="translate(64, 56)">
+    <!-- Terminal Prompt Angle > -->
+    <path d="M 40 60 L 95 95 L 40 130" fill="none" stroke="url(#accentGrad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" />
+    <!-- Horizontal Root Rule --- -->
+    <line x1="120" y1="95" x2="330" y2="95" stroke="#484f58" stroke-width="22" stroke-linecap="round" />
+
+    <!-- Tree Trunk | -->
+    <path d="M 95 160 L 95 330" fill="none" stroke="#484f58" stroke-width="22" stroke-linecap="round" />
+
+    <!-- Top Branch |--> __ -->
+    <path d="M 95 210 L 175 210" fill="none" stroke="#484f58" stroke-width="22" stroke-linecap="round" />
+    <path d="M 160 190 L 195 210 L 160 230" fill="none" stroke="url(#accentGrad)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="225" y1="210" x2="330" y2="210" stroke="#f0f6fc" stroke-width="22" stroke-linecap="round" />
+
+    <!-- Bottom Branch |--> __ -->
+    <path d="M 95 310 L 175 310" fill="none" stroke="#484f58" stroke-width="22" stroke-linecap="round" />
+    <path d="M 160 290 L 195 310 L 160 330" fill="none" stroke="url(#accentGrad)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="225" y1="310" x2="295" y2="310" stroke="#f0f6fc" stroke-width="22" stroke-linecap="round" />
+  </g>
+</svg>

@@ -9,3 +9,4 @@ export * from './Badge';
 export * from './Tabs';
 export * from './Card';
 export * from './Toast';
+export * from './TreeAsciiIcon';

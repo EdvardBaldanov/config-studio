@@ -16,11 +16,14 @@ import {
   CornerDownLeft,
   Loader2,
   Package,
+  Menu,
+  MoreVertical,
 } from 'lucide-react';
 import { Settings, OpenFile, FileItem, HeaderItemDef } from '../types';
 import { translations, Language, getAvailableLanguages, subscribeLanguages, LanguageMeta } from '../utils/i18n';
 import { api } from '../services/api';
 import { formatBytes } from '../utils/color';
+import { TreeAsciiIcon } from './ui';
 
 interface HeaderProps {
   settings: Settings;
@@ -39,6 +42,9 @@ interface HeaderProps {
   onLogout?: () => void;
   onOpenFile: (path: string) => void;
   onNavigateDir: (path: string) => void;
+  onToggleMobileFiles?: () => void;
+  onToggleMobileOutline?: () => void;
+  isMobileOutlineOpen?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -58,10 +64,14 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onOpenFile,
   onNavigateDir,
+  onToggleMobileFiles,
+  onToggleMobileOutline,
+  isMobileOutlineOpen = false,
 }) => {
   const [fileSearchQuery, setFileSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FileItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileMoreMenuOpen, setIsMobileMoreMenuOpen] = useState(false);
   const [availableLanguages, setAvailableLanguages] = useState<LanguageMeta[]>(getAvailableLanguages());
 
   useEffect(() => {
@@ -73,7 +83,21 @@ export const Header: React.FC<HeaderProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close mobile more menu on outside click
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
+        setIsMobileMoreMenuOpen(false);
+      }
+    };
+    if (isMobileMoreMenuOpen) {
+      document.addEventListener('mousedown', handleOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [isMobileMoreMenuOpen]);
 
   const t = translations[settings.language] || translations.ru;
 
@@ -224,33 +248,44 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-14 bg-base-surface border-b border-base-border px-4 flex items-center justify-between select-none z-30">
-      {/* Left: Branding & Path */}
-      <div className="flex items-center space-x-3 min-w-0">
-        <div className="flex items-center space-x-2.5">
+    <header className="h-14 bg-base-surface border-b border-base-border px-3 sm:px-4 flex items-center justify-between select-none z-30">
+      {/* Left: Mobile Hamburger, Branding & Path */}
+      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+        {onToggleMobileFiles && (
+          <button
+            type="button"
+            onClick={onToggleMobileFiles}
+            className="md:hidden p-1.5 -ml-1 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            title="Проводник файлов"
+          >
+            <Menu className="w-5 h-5 text-accent" />
+          </button>
+        )}
+
+        <div className="flex items-center space-x-2">
           {settings.hasCustomIcon ? (
             <img
               src={`/api/branding/icon?t=${Date.now()}`}
               alt="Logo"
-              className="w-8 h-8 rounded-lg object-contain bg-black/10 dark:bg-black/30 p-1 border border-base-border"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-contain bg-black/10 dark:bg-black/30 p-1 border border-base-border"
             />
           ) : (
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-md text-slate-900"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm shadow-md text-slate-900 shrink-0"
               style={{ backgroundColor: settings.accentColor }}
             >
               {(settings.appTitle || 'CS').substring(0, 2).toUpperCase()}
             </div>
           )}
-          <span className="font-semibold text-base tracking-tight text-gray-900 dark:text-white whitespace-nowrap">
+          <span className="font-semibold text-sm sm:text-base tracking-tight text-gray-900 dark:text-white whitespace-nowrap hidden sm:inline">
             {settings.appTitle}
           </span>
         </div>
 
-        <div className="h-4 w-px bg-gray-300 dark:bg-white/20 mx-2 hidden sm:block" />
+        <div className="h-4 w-px bg-gray-300 dark:bg-white/20 mx-1 hidden sm:block" />
 
         {/* Breadcrumb Path */}
-        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 font-mono overflow-hidden text-ellipsis whitespace-nowrap max-w-[200px] lg:max-w-[320px]">
+        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 font-mono overflow-hidden text-ellipsis whitespace-nowrap max-w-[140px] sm:max-w-[200px] lg:max-w-[320px]">
           <FolderOpen className="w-3.5 h-3.5 mr-1.5 text-accent flex-shrink-0" />
           <span className="text-gray-800 dark:text-gray-300 font-medium truncate">
             {displayPath}
@@ -387,115 +422,241 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center space-x-2 flex-shrink-0">
-        {/* Plugin Header Items (e.g. Remote Agent Switcher) */}
-        {pluginHeaderItems.map((item) => (
-          <PluginHeaderItemMount key={item.id} item={item} />
-        ))}
+      <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
+        {/* Mobile search trigger icon */}
+        <button
+          onClick={() => setIsSearchOpen(true)}
+          className="md:hidden p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          title={t.searchFiles}
+        >
+          <Search className="w-4 h-4" />
+        </button>
 
-        {/* Save button */}
+        {/* Mobile / Tablet Structure Outline Drawer Trigger with TreeAsciiIcon */}
+        {onToggleMobileOutline && (
+          <button
+            onClick={onToggleMobileOutline}
+            className={`lg:hidden p-2 rounded-xl transition-colors ${
+              isMobileOutlineOpen
+                ? 'bg-accent/20 text-accent border border-accent/40 shadow-sm'
+                : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+            title="Структура AST (Дерево тегов)"
+          >
+            <TreeAsciiIcon size={18} />
+          </button>
+        )}
+
+        {/* Plugin Header Items (e.g. Remote Agent Switcher) */}
+        <div className="hidden sm:flex items-center space-x-2">
+          {pluginHeaderItems.map((item) => (
+            <PluginHeaderItemMount key={item.id} item={item} />
+          ))}
+        </div>
+
+        {/* Save button (always visible) */}
         <button
           onClick={onSave}
           disabled={!currentFile || isSaving}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-900 transition-all duration-150 shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-900 transition-all duration-150 shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: settings.accentColor }}
           title={`${t.save} (Ctrl+S)`}
         >
-          <Save className="w-3.5 h-3.5" />
-          <span>{isSaving ? t.saving : t.save}</span>
+          {isSaving ? (
+            <div className="w-3.5 h-3.5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />
+          ) : (
+            <Save className="w-3.5 h-3.5" />
+          )}
+          <span className="hidden sm:inline">{isSaving ? t.saving : t.save}</span>
           {currentFile?.isDirty && (
             <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse ml-0.5" />
           )}
         </button>
 
-        {/* Download button */}
-        <button
-          onClick={onDownload}
-          disabled={!currentFile}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-base-border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          title={t.download}
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{t.download}</span>
-        </button>
-
-        {/* File info / hash / history button */}
-        <button
-          onClick={onOpenProperties}
-          disabled={!currentFile}
-          className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-30"
-          title={t.fileProperties}
-        >
-          <Info className="w-4 h-4" />
-        </button>
-
-        {/* Language switch - only visible if more than 1 language is available */}
-        {availableLanguages.length > 1 && (
+        {/* Desktop-only secondary buttons */}
+        <div className="hidden md:flex items-center space-x-1">
+          {/* Download button */}
           <button
-            onClick={() => {
-              const currentIdx = availableLanguages.findIndex((l) => l.code === settings.language);
-              const nextLang = availableLanguages[(currentIdx + 1) % availableLanguages.length];
-              onChangeLanguage(nextLang.code);
-            }}
-            className="px-2 py-1 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center space-x-1"
-            title={t.language}
+            onClick={onDownload}
+            disabled={!currentFile}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-base-border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title={t.download}
           >
-            <Globe className="w-3.5 h-3.5 text-accent" />
-            <span>{(settings.language || 'RU').toUpperCase()}</span>
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{t.download}</span>
           </button>
-        )}
 
-        {/* Theme mode toggle */}
-        <button
-          onClick={onToggleTheme}
-          className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          title={`Switch to ${
-            settings.themeMode === 'dark' ? t.themeLight : t.themeDark
-          }`}
-        >
-          {settings.themeMode === 'dark' ? (
-            <Sun className="w-4 h-4" />
-          ) : (
-            <Moon className="w-4 h-4" />
+          {/* File info / hash / history button */}
+          <button
+            onClick={onOpenProperties}
+            disabled={!currentFile}
+            className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-30"
+            title={t.fileProperties}
+          >
+            <Info className="w-4 h-4" />
+          </button>
+
+          {/* Language switch */}
+          {availableLanguages.length > 1 && (
+            <button
+              onClick={() => {
+                const currentIdx = availableLanguages.findIndex((l) => l.code === settings.language);
+                const nextLang = availableLanguages[(currentIdx + 1) % availableLanguages.length];
+                onChangeLanguage(nextLang.code);
+              }}
+              className="px-2 py-1 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center space-x-1"
+              title={t.language}
+            >
+              <Globe className="w-3.5 h-3.5 text-accent" />
+              <span>{(settings.language || 'RU').toUpperCase()}</span>
+            </button>
           )}
-        </button>
 
-        {/* Plugins quick toggle button */}
-        {onOpenPlugins && (
+          {/* Theme mode toggle */}
           <button
-            onClick={onOpenPlugins}
-            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-base-border transition-colors cursor-pointer"
-            title={`${t.tabPlugins} (${activePluginsCount} ${t.headerPluginsActive || 'active'})`}
+            onClick={onToggleTheme}
+            className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            title={`Switch to ${settings.themeMode === 'dark' ? t.themeLight : t.themeDark}`}
           >
-            <Package className="w-3.5 h-3.5 text-accent" />
-            <span className="hidden md:inline font-medium">{t.tabPlugins}</span>
-            {activePluginsCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-accent/20 text-accent border border-accent/30">
-                {activePluginsCount}
-              </span>
-            )}
+            {settings.themeMode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
-        )}
 
-        {/* Settings button */}
-        <button
-          onClick={onOpenSettings}
-          className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          title={t.settings}
-        >
-          <SettingsIcon className="w-4 h-4" />
-        </button>
+          {/* Plugins quick toggle button */}
+          {onOpenPlugins && (
+            <button
+              onClick={onOpenPlugins}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-base-border transition-colors cursor-pointer"
+              title={`${t.tabPlugins} (${activePluginsCount} ${t.headerPluginsActive || 'active'})`}
+            >
+              <Package className="w-3.5 h-3.5 text-accent" />
+              <span className="hidden lg:inline font-medium">{t.tabPlugins}</span>
+              {activePluginsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-accent/20 text-accent border border-accent/30">
+                  {activePluginsCount}
+                </span>
+              )}
+            </button>
+          )}
 
-        {/* Logout button if auth enabled */}
-        {onLogout && (
+          {/* Settings button */}
           <button
-            onClick={onLogout}
-            className="p-2 rounded-xl text-gray-500 hover:text-rose-500 dark:text-gray-400 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-            title={t.signOut}
+            onClick={onOpenSettings}
+            className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            title={t.settings}
           >
-            <LogOut className="w-4 h-4" />
+            <SettingsIcon className="w-4 h-4" />
           </button>
-        )}
+
+          {/* Logout button if auth enabled */}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-2 rounded-xl text-gray-500 hover:text-rose-500 dark:text-gray-400 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              title={t.signOut}
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Mobile More Options Dropdown [⋮] */}
+        <div className="relative md:hidden">
+          <button
+            onClick={() => setIsMobileMoreMenuOpen((prev) => !prev)}
+            className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            title="Еще"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+
+          {isMobileMoreMenuOpen && (
+            <div
+              ref={mobileMenuRef}
+              className="absolute right-0 top-full mt-2 w-52 bg-base-surface border border-base-border rounded-2xl shadow-2xl p-1.5 space-y-0.5 z-50 text-xs animate-in zoom-in-95 duration-100"
+            >
+              <button
+                onClick={() => {
+                  setIsMobileMoreMenuOpen(false);
+                  onOpenProperties();
+                }}
+                disabled={!currentFile}
+                className="w-full px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-left text-gray-800 dark:text-gray-200 flex items-center space-x-2.5 disabled:opacity-40"
+              >
+                <Info className="w-4 h-4 text-accent" />
+                <span>{t.fileProperties}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMobileMoreMenuOpen(false);
+                  onToggleTheme();
+                }}
+                className="w-full px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-left text-gray-800 dark:text-gray-200 flex items-center space-x-2.5"
+              >
+                {settings.themeMode === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-purple-400" />
+                )}
+                <span>{settings.themeMode === 'dark' ? t.themeLight : t.themeDark}</span>
+              </button>
+
+              {availableLanguages.length > 1 && (
+                <button
+                  onClick={() => {
+                    const currentIdx = availableLanguages.findIndex((l) => l.code === settings.language);
+                    const nextLang = availableLanguages[(currentIdx + 1) % availableLanguages.length];
+                    onChangeLanguage(nextLang.code);
+                    setIsMobileMoreMenuOpen(false);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-left text-gray-800 dark:text-gray-200 flex items-center space-x-2.5"
+                >
+                  <Globe className="w-3.5 h-3.5 text-accent" />
+                  <span>{t.language}: {(settings.language || 'RU').toUpperCase()}</span>
+                </button>
+              )}
+
+              {onOpenPlugins && (
+                <button
+                  onClick={() => {
+                    setIsMobileMoreMenuOpen(false);
+                    onOpenPlugins();
+                  }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-left text-gray-800 dark:text-gray-200 flex items-center space-x-2.5"
+                >
+                  <Package className="w-3.5 h-3.5 text-accent" />
+                  <span>{t.tabPlugins} ({activePluginsCount})</span>
+                </button>
+              )}
+
+              <div className="h-px bg-base-border my-1" />
+
+              <button
+                onClick={() => {
+                  setIsMobileMoreMenuOpen(false);
+                  onOpenSettings();
+                }}
+                className="w-full px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-left text-gray-800 dark:text-gray-200 flex items-center space-x-2.5"
+              >
+                <SettingsIcon className="w-4 h-4 text-accent" />
+                <span>{t.settings}</span>
+              </button>
+
+              {onLogout && (
+                <button
+                  onClick={() => {
+                    setIsMobileMoreMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-rose-500/10 text-left text-rose-500 flex items-center space-x-2.5"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>{t.signOut}</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

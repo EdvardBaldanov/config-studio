@@ -28,6 +28,8 @@ interface FileExplorerProps {
   onDeleteItem: (path: string) => void;
   onRenameItem: (oldPath: string, newPath: string) => void;
   onUploadFile: (dirPath: string, file: File) => void;
+  isMobileDrawerOpen?: boolean;
+  onCloseMobileDrawer?: () => void;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -42,6 +44,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onDeleteItem,
   onRenameItem,
   onUploadFile,
+  isMobileDrawerOpen = false,
+  onCloseMobileDrawer,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenuState, setContextMenuState] = useState<{
@@ -292,8 +296,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     onNavigateDir(parts.join('/'));
   };
 
-  return (
-    <aside className="w-64 bg-base-surface border-r border-base-border flex flex-col h-full select-none flex-shrink-0">
+  const explorerAside = (
+    <aside className="w-72 sm:w-64 bg-base-surface border-r border-base-border flex flex-col h-full select-none flex-shrink-0">
       {/* Title & Toolbar */}
       <div className="p-3 border-b border-base-border flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -302,25 +306,34 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         <div className="flex items-center space-x-1">
           <button
             onClick={() => handleCreatePrompt(false)}
-            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
             title={t.newFile}
           >
             <FilePlus className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleCreatePrompt(true)}
-            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
             title={t.newFolder}
           >
             <FolderPlus className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onRefresh}
-            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
             title={t.refresh}
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
+          {onCloseMobileDrawer && (
+            <button
+              onClick={onCloseMobileDrawer}
+              className="md:hidden p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              title="Закрыть"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -328,7 +341,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       {currentDir && (
         <div
           onClick={goUp}
-          className="px-3 py-1.5 flex items-center space-x-2 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer border-b border-base-border"
+          className="px-3 py-2 sm:py-1.5 flex items-center space-x-2 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer border-b border-base-border"
           title="Go up"
         >
           <CornerLeftUp className="w-3.5 h-3.5 text-accent" />
@@ -370,6 +383,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     onNavigateDir(item.path);
                   } else {
                     onSelectFile(item.path);
+                    onCloseMobileDrawer?.();
                   }
                 }}
                 onContextMenu={(e) => {
@@ -387,7 +401,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     },
                   });
                 }}
-                className={`group flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs cursor-pointer transition-colors ${
+                className={`group flex items-center justify-between px-2.5 py-2 sm:py-1.5 rounded-xl text-xs cursor-pointer min-h-[36px] sm:min-h-[30px] transition-colors ${
                   isSelected
                     ? 'bg-accent/15 text-gray-900 dark:text-white font-medium border border-accent/40 shadow-sm'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
@@ -465,5 +479,28 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         />
       )}
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop view (always visible on md+) */}
+      <div className="hidden md:flex h-full flex-shrink-0">
+        {explorerAside}
+      </div>
+
+      {/* Mobile Drawer (visible on < md when open) */}
+      {isMobileDrawerOpen && (
+        <div className="md:hidden fixed inset-0 z-40 flex animate-in fade-in duration-200">
+          <div className="h-full shadow-2xl animate-in slide-in-from-left duration-200">
+            {explorerAside}
+          </div>
+          <div
+            className="flex-1 bg-black/60 backdrop-blur-xs"
+            onClick={onCloseMobileDrawer}
+            aria-hidden="true"
+          />
+        </div>
+      )}
+    </>
   );
 };

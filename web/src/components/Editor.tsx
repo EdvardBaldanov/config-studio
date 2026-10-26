@@ -42,7 +42,37 @@ export const Editor: React.FC<EditorProps> = ({
 }) => {
   const monacoInstanceRef = useRef<any>(null);
   const tagsScrollRef = useRef<HTMLDivElement>(null);
+  const [showMobileTags, setShowMobileTags] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   const t = translations[settings.language] || translations.ru;
+
+  const insertTextAtCursor = (text: string) => {
+    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    const selection = editor.getSelection();
+    if (!selection) return;
+    editor.executeEdits('mobile-accessory-bar', [
+      {
+        range: selection,
+        text: text,
+        forceMoveMarkers: true,
+      },
+    ]);
+    editor.focus();
+  };
+
+  const handleMobileTab = () => {
+    if (!editorRef.current) return;
+    editorRef.current.trigger('mobile-accessory-bar', 'tab', null);
+    editorRef.current.focus();
+  };
 
   const handleTagsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (tagsScrollRef.current && e.deltaY !== 0) {
@@ -267,8 +297,25 @@ export const Editor: React.FC<EditorProps> = ({
           })}
         </div>
 
-        {/* Right Action Area: Guard Pill & 1-Click Action Toolbar */}
+        {/* Right Action Area: Guard Pill & 1-Click Action Toolbar & Mobile Tag Toggle */}
         <div className="flex items-center space-x-1.5 pl-2 shrink-0">
+          {/* Mobile Quick Jump Tags Toggle Button */}
+          {rootTags.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowMobileTags((prev) => !prev)}
+              className={`md:hidden flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
+                showMobileTags
+                  ? 'bg-accent/20 text-accent border-accent/40 shadow-xs'
+                  : 'text-gray-400 hover:text-white bg-black/10 dark:bg-white/5 border-base-border'
+              }`}
+              title={t.quickJump || 'Быстрый переход'}
+            >
+              <Hash className="w-3 h-3 text-accent" />
+              <span>{rootTags.length}</span>
+            </button>
+          )}
+
           {/* Structure Guard Status Pill */}
           {currentFile && guardResult?.isGuarded && (
             !guardResult.valid && guardResult.issues.length > 0 ? (
@@ -305,21 +352,25 @@ export const Editor: React.FC<EditorProps> = ({
       {rootTags.length > 0 && (
         <div
           onWheel={handleTagsWheel}
-          className="min-h-[46px] bg-base-surface/80 border-b border-base-border flex items-center px-3 space-x-2 select-none flex-shrink-0"
+          className={`${
+            showMobileTags ? 'flex' : 'hidden md:flex'
+          } min-h-[42px] bg-base-surface/90 backdrop-blur-xs border-b border-base-border items-center px-3 space-x-2 select-none flex-shrink-0 transition-all`}
         >
           <div className="flex items-center space-x-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 flex-shrink-0 mr-1">
-            <Hash className="w-4 h-4 text-accent" />
-            <span>{t.quickJump}</span>
+            <Hash className="w-3.5 h-3.5 text-accent" />
+            <span className="hidden sm:inline">{t.quickJump}</span>
           </div>
           <div
             ref={tagsScrollRef}
-            className="flex-1 flex items-center space-x-2 overflow-x-auto py-2 pb-2.5 horizontal-tags-scroll"
+            className="flex-1 flex items-center space-x-1.5 overflow-x-auto py-1.5 custom-scrollbar"
           >
             {rootTags.map((tag) => (
               <button
                 key={tag.id}
-                onClick={() => onSelectLine && onSelectLine(tag.line, true)}
-                className="px-3 py-1 rounded-xl text-xs font-mono whitespace-nowrap bg-white/90 dark:bg-white/5 border border-base-border hover:border-accent hover:text-accent text-gray-700 dark:text-gray-300 transition-all shadow-2xs active:scale-95 flex-shrink-0 flex items-center space-x-1.5"
+                onClick={() => {
+                  if (onSelectLine) onSelectLine(tag.line, true);
+                }}
+                className="px-2.5 py-1 rounded-lg text-xs font-mono whitespace-nowrap bg-white/90 dark:bg-white/5 border border-base-border hover:border-accent hover:text-accent text-gray-700 dark:text-gray-300 transition-all shadow-2xs active:scale-95 flex-shrink-0 flex items-center space-x-1.5"
                 title={`Строка ${tag.line}`}
               >
                 <span>{tag.label}</span>
@@ -327,6 +378,14 @@ export const Editor: React.FC<EditorProps> = ({
               </button>
             ))}
           </div>
+          {/* Mobile close button for tags panel */}
+          <button
+            onClick={() => setShowMobileTags(false)}
+            className="md:hidden p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-gray-400 shrink-0"
+            title="Скрыть теги"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -342,18 +401,41 @@ export const Editor: React.FC<EditorProps> = ({
           options={{
             fontSize: 13,
             fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            minimap: { enabled: true, scale: 1 },
+            minimap: { enabled: !isMobile, scale: 1 },
             scrollBeyondLastLine: false,
             wordWrap: 'on',
             automaticLayout: true,
             tabSize: 2,
-            lineNumbersMinChars: 3,
+            lineNumbersMinChars: isMobile ? 2 : 3,
+            glyphMargin: !isMobile,
+            folding: !isMobile,
             renderWhitespace: 'selection',
-            folding: true,
             smoothScrolling: true,
             cursorBlinking: 'smooth',
           }}
         />
+      </div>
+
+      {/* Mobile Developer Accessory Bar (touch keys for config editing) */}
+      <div className="md:hidden flex items-center gap-1.5 px-2 py-1.5 bg-base-surface border-t border-base-border overflow-x-auto select-none shrink-0 z-10 custom-scrollbar">
+        <button
+          type="button"
+          onClick={handleMobileTab}
+          className="px-2.5 py-1 text-xs font-mono font-semibold bg-white/10 hover:bg-white/20 active:scale-95 rounded-lg text-gray-200 border border-base-border shadow-xs shrink-0"
+          title="Табуляция (2 пробела)"
+        >
+          Tab
+        </button>
+        {[':', '"', "'", '{', '}', '[', ']', '=', '-', '/', '#'].map((char) => (
+          <button
+            key={char}
+            type="button"
+            onClick={() => insertTextAtCursor(char)}
+            className="w-7 h-7 flex items-center justify-center text-xs font-mono font-bold bg-white/10 hover:bg-white/20 active:scale-95 rounded-lg text-gray-200 border border-base-border shadow-xs shrink-0"
+          >
+            {char}
+          </button>
+        ))}
       </div>
     </div>
   );

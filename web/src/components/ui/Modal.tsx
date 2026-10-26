@@ -36,9 +36,9 @@ const sizeClasses: Record<ModalSize, string> = {
 };
 
 const heightClasses: Record<ModalHeight, string> = {
-  auto: 'max-h-[90vh]',
-  fixed: 'h-[82vh] min-h-[580px] max-h-[820px]',
-  full: 'h-[92vh]',
+  auto: 'max-h-[92vh] max-sm:h-full max-sm:max-h-none',
+  fixed: 'h-[82vh] min-h-[580px] max-h-[820px] max-sm:h-full max-sm:min-h-0 max-sm:max-h-none',
+  full: 'h-[92vh] max-sm:h-full max-sm:max-h-none',
 };
 
 export const Modal: React.FC<ModalProps> & {
@@ -71,7 +71,7 @@ export const Modal: React.FC<ModalProps> & {
 
   return (
     <ModalContext.Provider value={{ onClose, size, height }}>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-xs animate-in fade-in duration-200">
         {/* Backdrop click catcher */}
         {closeOnBackdrop && (
           <div
@@ -84,7 +84,11 @@ export const Modal: React.FC<ModalProps> & {
         <div
           role="dialog"
           aria-modal="true"
-          className={`bg-base-surface border border-base-border rounded-2xl flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 ${sizeClasses[size]} ${heightClasses[height]} ${className}`}
+          className={`bg-base-surface border border-base-border max-sm:border-none rounded-none sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-sm:w-full max-sm:h-full max-sm:rounded-none ${sizeClasses[size]} ${heightClasses[height]} ${className}`}
+          style={{
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
         >
           {children}
         </div>
@@ -119,7 +123,7 @@ export const ModalHeader: React.FC<ModalHeaderProps> = ({
 
   return (
     <div
-      className={`px-6 py-4 border-b border-base-border flex items-center justify-between shrink-0 select-none ${className}`}
+      className={`px-4 sm:px-6 py-3.5 sm:py-4 border-b border-base-border flex items-center justify-between shrink-0 select-none ${className}`}
     >
       <div className="flex items-center space-x-3 min-w-0">
         {icon && <div className="shrink-0">{icon}</div>}
@@ -176,7 +180,7 @@ export const ModalBody: React.FC<ModalBodyProps> = ({
     <ScrollArea
       orientation={orientation}
       className={`flex-1 min-h-0 ${className}`}
-      contentClassName="h-full"
+      contentClassName="min-h-full"
     >
       {children}
     </ScrollArea>
@@ -203,7 +207,7 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
 
   return (
     <div
-      className={`px-6 py-3.5 border-t border-base-border bg-gray-50/50 dark:bg-black/10 flex items-center ${justifyClass} gap-3 shrink-0 select-none ${className}`}
+      className={`px-4 sm:px-6 py-3 sm:py-3.5 border-t border-base-border bg-gray-50/50 dark:bg-black/10 flex items-center ${justifyClass} gap-3 shrink-0 select-none ${className}`}
     >
       {children}
     </div>

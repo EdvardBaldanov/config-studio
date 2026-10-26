@@ -19,6 +19,8 @@ interface StructureOutlineProps {
   error?: string;
   settings: Settings;
   onSelectLine: (line: number, shouldFocus?: boolean) => void;
+  isMobileDrawerOpen?: boolean;
+  onCloseMobileDrawer?: () => void;
 }
 
 export const StructureOutline: React.FC<StructureOutlineProps> = ({
@@ -26,6 +28,8 @@ export const StructureOutline: React.FC<StructureOutlineProps> = ({
   error,
   settings,
   onSelectLine,
+  isMobileDrawerOpen = false,
+  onCloseMobileDrawer,
 }) => {
   const [localSearch, setLocalSearch] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
@@ -199,44 +203,13 @@ export const StructureOutline: React.FC<StructureOutlineProps> = ({
 
   const activeMatchedId = matchingNodes[currentMatchIndex]?.id;
 
-  return (
-    <aside
-      style={{ width: `${width}px` }}
-      className="relative bg-base-surface border-l border-base-border flex flex-col h-full select-none flex-shrink-0 text-gray-800 dark:text-gray-200"
-    >
-      {/* Resizer Handle */}
-      <div
-        onMouseDown={(e) => {
-          e.preventDefault();
-          setIsResizing(true);
-        }}
-        onDoubleClick={handleResetWidth}
-        title={t.resizeWidthHelp}
-        className="absolute top-0 bottom-0 -left-1.5 w-3 cursor-col-resize z-30 group flex items-center justify-center select-none"
-      >
-        {/* Full-height subtle line on hover/active */}
-        <div
-          className={`absolute inset-y-0 w-0.5 transition-opacity ${
-            isResizing ? 'opacity-100' : 'opacity-0 group-hover:opacity-75'
-          }`}
-          style={{ backgroundColor: settings.accentColor }}
-        />
-        {/* Center grab handle indicator */}
-        <div
-          className={`w-1 h-8 rounded-full z-10 transition-all ${
-            isResizing
-              ? 'opacity-100 scale-110 shadow-sm'
-              : 'opacity-0 group-hover:opacity-100'
-          }`}
-          style={{ backgroundColor: settings.accentColor }}
-        />
-      </div>
+  const handleSelect = (line: number, shouldFocus?: boolean) => {
+    onSelectLine(line, shouldFocus);
+    onCloseMobileDrawer?.();
+  };
 
-      {/* Fullscreen overlay to capture events cleanly during drag */}
-      {isResizing && (
-        <div className="fixed inset-0 z-50 cursor-col-resize select-none" />
-      )}
-
+  const outlineContent = (
+    <aside className="w-[285px] sm:w-80 lg:w-full bg-base-surface border-l border-base-border flex flex-col h-full select-none flex-shrink-0 text-gray-800 dark:text-gray-200">
       {/* Header */}
       <div className="p-3 border-b border-base-border flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -260,6 +233,15 @@ export const StructureOutline: React.FC<StructureOutlineProps> = ({
           >
             <ChevronsUpDown className="w-3.5 h-3.5" />
           </button>
+          {onCloseMobileDrawer && (
+            <button
+              onClick={onCloseMobileDrawer}
+              className="lg:hidden p-1 rounded-lg text-gray-400 hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors ml-1"
+              title="Закрыть"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -341,7 +323,7 @@ export const StructureOutline: React.FC<StructureOutlineProps> = ({
                 key={node.id}
                 node={node}
                 level={0}
-                onSelectLine={onSelectLine}
+                onSelectLine={handleSelect}
                 searchFilter={searchQuery}
                 activeMatchedId={activeMatchedId}
                 collapsedSet={collapsedSet}
@@ -372,6 +354,63 @@ export const StructureOutline: React.FC<StructureOutlineProps> = ({
         </button>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop view (always visible on lg+) */}
+      <div
+        style={{ width: `${width}px` }}
+        className="hidden lg:flex relative h-full flex-shrink-0"
+      >
+        {/* Resizer Handle */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+          onDoubleClick={handleResetWidth}
+          title={t.resizeWidthHelp}
+          className="absolute top-0 bottom-0 -left-1.5 w-3 cursor-col-resize z-30 group flex items-center justify-center select-none"
+        >
+          <div
+            className={`absolute inset-y-0 w-0.5 transition-opacity ${
+              isResizing ? 'opacity-100' : 'opacity-0 group-hover:opacity-75'
+            }`}
+            style={{ backgroundColor: settings.accentColor }}
+          />
+          <div
+            className={`w-1 h-8 rounded-full z-10 transition-all ${
+              isResizing
+                ? 'opacity-100 scale-110 shadow-sm'
+                : 'opacity-0 group-hover:opacity-100'
+            }`}
+            style={{ backgroundColor: settings.accentColor }}
+          />
+        </div>
+
+        {/* Fullscreen overlay to capture events cleanly during drag */}
+        {isResizing && (
+          <div className="fixed inset-0 z-50 cursor-col-resize select-none" />
+        )}
+
+        {outlineContent}
+      </div>
+
+      {/* Mobile Drawer (visible on < lg when open) */}
+      {isMobileDrawerOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 flex animate-in fade-in duration-200">
+          <div
+            className="flex-1 bg-black/60 backdrop-blur-xs"
+            onClick={onCloseMobileDrawer}
+            aria-hidden="true"
+          />
+          <div className="h-full shadow-2xl animate-in slide-in-from-right duration-200 flex flex-shrink-0">
+            {outlineContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

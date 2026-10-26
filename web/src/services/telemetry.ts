@@ -103,6 +103,16 @@ class TelemetryService {
     const stack = errorObj.stack || '';
     const message = errorObj.message || 'Unknown error';
 
+    // Ignore benign browser security wrappers or extension noise (e.g. Firefox Xray wrapper, ResizeObserver)
+    if (
+      message.includes('Permission denied to access property') ||
+      message.includes('ResizeObserver loop') ||
+      message.includes('Extension context invalidated') ||
+      message === 'Script error.'
+    ) {
+      return;
+    }
+
     this.record({
       category: 'error',
       source: 'frontend',

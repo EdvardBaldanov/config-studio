@@ -3,9 +3,7 @@ import {
   Package,
   Search,
   Check,
-  Shield,
   Layers,
-  Sparkles,
   Info,
   RefreshCw,
   FolderOpen,
@@ -15,6 +13,7 @@ import { PluginItem, PluginSettingField } from '../../../types';
 import { api } from '../../../services/api';
 import { getPluginName, getPluginDescription } from '../../../utils/i18n';
 import { pluginManager } from '../../../services/pluginLoader';
+import { Card, Input, Select, Toggle, Badge } from '../../ui';
 
 interface PluginSettingsTabProps {
   initialPluginId?: string | null;
@@ -139,16 +138,12 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
       <div className="w-64 border-r border-base-border flex flex-col bg-gray-50/70 dark:bg-black/25 shrink-0">
         {/* Search header */}
         <div className="p-3 border-b border-base-border">
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-2.5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.pluginSettingsSearch || 'Поиск плагина...'}
-              className="w-full pl-7 pr-2.5 py-1.5 bg-white dark:bg-black/30 border border-base-border rounded-xl text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent transition"
-            />
-          </div>
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t.pluginSettingsSearch || 'Поиск плагина...'}
+            icon={<Search size={13} />}
+          />
         </div>
 
         {/* Plugin Stack with smooth scroll */}
@@ -215,15 +210,9 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
                     <div className="flex items-center space-x-1.5 text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
                       <span className="font-mono">v{p.version}</span>
                       {(hasConfig || hasCustom) && (
-                        <span
-                          className="px-1 py-0.2 rounded text-[9px] font-medium"
-                          style={{
-                            backgroundColor: `${accentColor}18`,
-                            color: accentColor,
-                          }}
-                        >
+                        <Badge variant="accent" size="sm">
                           Настройки
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -266,18 +255,15 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
                     <h3 className="text-base font-bold text-gray-900 dark:text-white truncate">
                       {getPluginName(selectedPlugin, language)}
                     </h3>
-                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-base-border text-gray-400 font-mono">
+                    <Badge variant="neutral" size="sm">
                       v{selectedPlugin.version}
-                    </span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
-                        selectedPlugin.enabled
-                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-gray-500/15 text-gray-400 border border-gray-500/30'
-                      }`}
+                    </Badge>
+                    <Badge
+                      variant={selectedPlugin.enabled ? 'success' : 'neutral'}
+                      size="sm"
                     >
                       {selectedPlugin.enabled ? 'Включен' : 'Отключен'}
-                    </span>
+                    </Badge>
                   </div>
 
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
@@ -345,88 +331,41 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
 
                     if (field.type === 'boolean') {
                       return (
-                        <div
-                          key={field.id}
-                          className="p-3.5 rounded-xl border border-base-border bg-gray-50/50 dark:bg-black/20 flex items-center justify-between gap-4"
-                        >
-                          <div>
-                            <label className="text-xs font-semibold text-gray-900 dark:text-gray-200">
-                              {field.label}
-                            </label>
-                            {field.description && (
-                              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                                {field.description}
-                              </p>
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={!!val}
-                            onClick={() => handleUpdateSetting(field.id, !val)}
-                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
-                              val ? 'border-transparent shadow-xs' : 'border-gray-600 bg-gray-700/60'
-                            }`}
-                            style={{ backgroundColor: val ? accentColor : undefined }}
-                          >
-                            <span
-                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                                val ? 'translate-x-4' : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
-                        </div>
+                        <Card key={field.id} className="p-3.5">
+                          <Toggle
+                            checked={!!val}
+                            onChange={(nextVal) => handleUpdateSetting(field.id, nextVal)}
+                            label={field.label}
+                            description={field.description}
+                            size="sm"
+                          />
+                        </Card>
                       );
                     }
 
                     if (field.type === 'select') {
                       return (
-                        <div
-                          key={field.id}
-                          className="p-3.5 rounded-xl border border-base-border bg-gray-50/50 dark:bg-black/20 space-y-1.5"
-                        >
-                          <label className="text-xs font-semibold text-gray-900 dark:text-gray-200">
-                            {field.label}
-                          </label>
-                          {field.description && (
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                              {field.description}
-                            </p>
-                          )}
-                          <select
+                        <Card key={field.id} className="p-3.5">
+                          <Select
+                            label={field.label}
+                            description={field.description}
                             value={val}
                             onChange={(e) => handleUpdateSetting(field.id, e.target.value)}
-                            className="w-full px-3 py-1.5 bg-white dark:bg-black/40 border border-base-border rounded-xl text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent"
-                          >
-                            {(field.options || []).map((opt: any) => {
+                            options={(field.options || []).map((opt: any) => {
                               const optVal = typeof opt === 'object' ? opt.value : opt;
                               const optLabel = typeof opt === 'object' ? opt.label : opt;
-                              return (
-                                <option key={optVal} value={optVal}>
-                                  {optLabel}
-                                </option>
-                              );
+                              return { value: optVal, label: optLabel };
                             })}
-                          </select>
-                        </div>
+                          />
+                        </Card>
                       );
                     }
 
                     return (
-                      <div
-                        key={field.id}
-                        className="p-3.5 rounded-xl border border-base-border bg-gray-50/50 dark:bg-black/20 space-y-1.5"
-                      >
-                        <label className="text-xs font-semibold text-gray-900 dark:text-gray-200">
-                          {field.label}
-                        </label>
-                        {field.description && (
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {field.description}
-                          </p>
-                        )}
-                        <input
+                      <Card key={field.id} className="p-3.5">
+                        <Input
+                          label={field.label}
+                          description={field.description}
                           type={field.type === 'number' ? 'number' : 'text'}
                           value={val}
                           onChange={(e) =>
@@ -435,9 +374,8 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
                               field.type === 'number' ? Number(e.target.value) : e.target.value
                             )
                           }
-                          className="w-full px-3 py-1.5 bg-white dark:bg-black/40 border border-base-border rounded-xl text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent"
                         />
-                      </div>
+                      </Card>
                     );
                   })}
                 </div>
@@ -446,7 +384,7 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
 
             {/* Empty state: No custom config for this plugin */}
             {!customRenderer && manifestSettings.length === 0 && (
-              <div className="p-6 rounded-2xl bg-gray-100/50 dark:bg-black/20 border border-base-border space-y-3">
+              <Card className="p-6 space-y-3">
                 <div className="flex items-center space-x-2 text-xs font-semibold text-gray-400">
                   <Info size={14} className="text-accent" />
                   <span>{t.pluginSettingsNoCustomConfig}</span>
@@ -460,11 +398,11 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
                   <FolderOpen size={13} className="text-accent" />
                   <span>{t.pluginSettingsAutosaved}</span>
                 </div>
-              </div>
+              </Card>
             )}
 
             {/* Technical Specifications Card */}
-            <div className="p-4 rounded-2xl border border-base-border bg-black/10 space-y-2.5">
+            <Card className="p-4 space-y-2.5">
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center space-x-1.5">
                 <Layers size={13} />
                 <span>Технические метаданные</span>
@@ -486,17 +424,19 @@ export const PluginSettingsTab: React.FC<PluginSettingsTabProps> = ({
                   <span className="text-gray-500 text-[10px] block mb-1">Разрешения:</span>
                   <div className="flex flex-wrap gap-1">
                     {selectedPlugin.permissions.map((perm) => (
-                      <span
+                      <Badge
                         key={perm}
-                        className="text-[10px] px-2 py-0.5 rounded font-mono bg-teal-500/10 text-teal-300 border border-teal-500/20"
+                        variant="accent"
+                        size="sm"
+                        className="font-mono text-[10px]"
                       >
                         {perm}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         )}
       </div>

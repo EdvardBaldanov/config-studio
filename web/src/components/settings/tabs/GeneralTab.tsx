@@ -12,6 +12,7 @@ import {
 import { Settings } from '../../../types';
 import { LanguageMeta } from '../../../utils/i18n';
 import { PRESET_BASE_COLORS, PRESET_ACCENT_COLORS } from '../types';
+import { Input, Button, Card } from '../../ui';
 
 interface GeneralTabProps {
   settings: Settings;
@@ -88,20 +89,19 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
     <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
       {/* App Title */}
       <div>
-        <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
-          <Type className="w-4 h-4 text-accent" />
-          <span>{t.appTitle}</span>
-        </label>
-        <input
+        <Input
+          label={
+            <span className="flex items-center space-x-2">
+              <Type className="w-4 h-4 text-accent" />
+              <span>{t.appTitle}</span>
+            </span>
+          }
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. Config Studio"
-          className="w-full px-3.5 py-2.5 bg-gray-100 dark:bg-black/30 border border-gray-300 dark:border-white/15 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:border-accent transition-colors"
+          description={t.appTitleHelp}
         />
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5">
-          {t.appTitleHelp}
-        </p>
       </div>
 
       {/* Language Selector Dropdown */}
@@ -175,35 +175,29 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
           {t.theme}
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <button
+          <Button
             type="button"
+            variant={themeMode === 'dark' ? 'primary' : 'secondary'}
+            size="md"
             onClick={() => setThemeMode('dark')}
-            className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center space-x-2 transition-all ${
-              themeMode === 'dark'
-                ? 'border-accent bg-accent/15 text-accent shadow-sm'
-                : 'border-base-border bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-400'
-            }`}
+            icon={<Moon className="w-3.5 h-3.5" />}
           >
-            <Moon className="w-3.5 h-3.5" />
-            <span>{t.themeDark}</span>
-          </button>
-          <button
+            {t.themeDark}
+          </Button>
+          <Button
             type="button"
+            variant={themeMode === 'light' ? 'primary' : 'secondary'}
+            size="md"
             onClick={() => setThemeMode('light')}
-            className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center space-x-2 transition-all ${
-              themeMode === 'light'
-                ? 'border-accent bg-accent/15 text-accent shadow-sm'
-                : 'border-base-border bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-400'
-            }`}
+            icon={<Sun className="w-3.5 h-3.5" />}
           >
-            <Sun className="w-3.5 h-3.5" />
-            <span>{t.themeLight}</span>
-          </button>
+            {t.themeLight}
+          </Button>
         </div>
       </div>
 
       {/* Custom Icon & Favicon Upload */}
-      <div>
+      <Card className="p-4">
         <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
           <ImageIcon className="w-4 h-4 text-accent" />
           <span>{t.appIcon}</span>
@@ -224,7 +218,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
             )}
           </div>
 
-          <div className="flex-1">
+          <div className="flex-1 space-y-1.5">
             <input
               type="file"
               ref={fileInputRef}
@@ -232,20 +226,21 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
               accept=".png,.svg,.ico,.jpg,.webp"
               className="hidden"
             />
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-medium text-gray-800 dark:text-white bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-base-border transition-colors shadow-2xs"
+              icon={<Upload className="w-3.5 h-3.5 text-accent" />}
             >
-              <Upload className="w-3.5 h-3.5 text-accent" />
-              <span>{t.chooseImage}</span>
-            </button>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+              {t.chooseImage}
+            </Button>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
               {t.appIconHelp}
             </p>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Base Color */}
       <div>
@@ -258,7 +253,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
               key={preset.hex}
               type="button"
               onClick={() => setBaseColor(preset.hex)}
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs border transition-all ${
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs border transition-all cursor-pointer ${
                 baseColor.toLowerCase() === preset.hex.toLowerCase()
                   ? 'border-accent text-accent font-semibold shadow-xs'
                   : 'border-base-border text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -299,7 +294,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
               key={preset.hex}
               type="button"
               onClick={() => setAccentColor(preset.hex)}
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs border transition-all ${
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs border transition-all cursor-pointer ${
                 accentColor.toLowerCase() === preset.hex.toLowerCase()
                   ? 'border-accent text-accent font-semibold shadow-xs'
                   : 'border-base-border text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -338,7 +333,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
           <button
             type="button"
             onClick={() => setBottomDockMode('auto')}
-            className={`py-2 px-3 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition-all ${
+            className={`py-2 px-3 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
               bottomDockMode === 'auto'
                 ? 'border-accent bg-accent/15 text-accent font-semibold shadow-xs'
                 : 'border-base-border bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-400'
@@ -350,7 +345,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
           <button
             type="button"
             onClick={() => setBottomDockMode('always')}
-            className={`py-2 px-3 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition-all ${
+            className={`py-2 px-3 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
               bottomDockMode === 'always'
                 ? 'border-accent bg-accent/15 text-accent font-semibold shadow-xs'
                 : 'border-base-border bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-400'
@@ -362,7 +357,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
           <button
             type="button"
             onClick={() => setBottomDockMode('hidden')}
-            className={`py-2 px-3 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition-all ${
+            className={`py-2 px-3 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
               bottomDockMode === 'hidden'
                 ? 'border-accent bg-accent/15 text-accent font-semibold shadow-xs'
                 : 'border-base-border bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-400'

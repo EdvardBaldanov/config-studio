@@ -10,7 +10,7 @@ import {
 import { AuditEvent } from '../../../types';
 import { api } from '../../../services/api';
 import { telemetry } from '../../../services/telemetry';
-import { ScrollArea } from '../../ui';
+import { ScrollArea, Card, Input, Button, Badge } from '../../ui';
 
 interface AuditTabProps {
   t: any;
@@ -96,27 +96,28 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
 
         <div className="flex items-center space-x-2 shrink-0">
           {/* Copy AI Report button */}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleCopyAiReport}
             title={t.auditCopyAi}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 transition cursor-pointer"
+            icon={copiedAiAudit ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+            className="text-teal-400 border-teal-500/30 hover:bg-teal-500/20"
           >
-            {copiedAiAudit ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-            <span>{copiedAiAudit ? t.auditCopied : t.auditCopyAi}</span>
-          </button>
+            {copiedAiAudit ? t.auditCopied : t.auditCopyAi}
+          </Button>
 
           {/* Export button */}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleExportAuditLogs}
             disabled={isExportingAudit}
             title={t.auditExport}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 transition cursor-pointer disabled:opacity-50"
+            icon={<Download size={13} className={`text-accent ${isExportingAudit ? 'animate-bounce' : ''}`} />}
           >
-            <Download size={13} className={`text-accent ${isExportingAudit ? 'animate-bounce' : ''}`} />
-            <span>{isExportingAudit ? t.auditExporting : t.auditExport}</span>
-          </button>
+            {isExportingAudit ? t.auditExporting : t.auditExport}
+          </Button>
         </div>
       </div>
 
@@ -124,17 +125,15 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
       <div className="flex flex-col gap-2 pt-1">
         <div className="flex flex-col sm:flex-row gap-2.5">
           {/* Search input */}
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-2.5 text-gray-400" />
-            <input
-              type="text"
+          <div className="flex-1">
+            <Input
               value={auditSearch}
               onChange={(e) => {
                 setAuditSearch(e.target.value);
                 loadAuditLogs(auditSeverity, e.target.value, auditCategory);
               }}
               placeholder={t.auditSearchPlaceholder}
-              className="w-full pl-8 pr-3 py-2 bg-gray-100 dark:bg-black/30 border border-base-border rounded-xl text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent transition"
+              icon={<Search size={14} />}
             />
           </div>
 
@@ -202,15 +201,14 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
           </div>
 
           {/* Refresh button */}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={() => loadAuditLogs()}
             disabled={auditLoading}
-            className="p-2 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-gray-400 hover:text-white transition shrink-0 cursor-pointer"
             title={t.auditRefresh}
-          >
-            <RefreshCw size={14} className={auditLoading ? 'animate-spin text-accent' : ''} />
-          </button>
+            icon={<RefreshCw size={14} className={auditLoading ? 'animate-spin text-accent' : ''} />}
+          />
         </div>
 
         {/* Category Filter Pills with Mouse Wheel Horizontal Scrolling */}
@@ -306,12 +304,12 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
 
       {/* Events List */}
       {auditEvents.length === 0 ? (
-        <div className="p-8 text-center rounded-2xl bg-gray-100/50 dark:bg-black/20 border border-base-border space-y-2">
+        <Card className="p-8 text-center space-y-2">
           <ScrollText className="w-8 h-8 text-gray-400 mx-auto opacity-40" />
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {auditSearch || auditSeverity ? t.auditNoMatches : t.auditEmpty}
           </p>
-        </div>
+        </Card>
       ) : (
         <div className="space-y-2">
           {auditEvents.map((evt) => {
@@ -320,51 +318,44 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
             const isCritical = evt.severity === 'critical';
             const isWarn = evt.severity === 'warn';
 
+            const catVariant =
+              evt.category === 'error' || evt.severity === 'error'
+                ? 'error'
+                : evt.category === 'network'
+                ? 'info'
+                : evt.category === 'system'
+                ? 'neutral'
+                : 'success';
+
+            const sevVariant = isCritical ? 'error' : isWarn ? 'warning' : 'info';
+
             return (
-              <div
+              <Card
                 key={evt.id}
-                className={`p-3 rounded-xl border transition ${
+                className={`p-3 transition ${
                   isCritical
                     ? 'bg-red-500/5 border-red-500/30'
                     : isWarn
                     ? 'bg-amber-500/5 border-amber-500/30'
-                    : 'bg-black/10 dark:bg-black/25 border-base-border hover:border-gray-500/30'
+                    : 'bg-black/10 dark:bg-black/25 hover:border-gray-500/30'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                     {/* Category badge */}
-                    <span
-                      className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase ${
-                        evt.category === 'error' || evt.severity === 'error'
-                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                          : evt.category === 'network'
-                          ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40'
-                          : evt.category === 'system'
-                          ? 'bg-slate-700/60 text-slate-300 border border-slate-600'
-                          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                      }`}
-                    >
+                    <Badge variant={catVariant} size="sm" className="uppercase font-bold tracking-wider">
                       {evt.category || 'user'}
-                    </span>
+                    </Badge>
 
                     {/* Severity badge */}
-                    <span
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase ${
-                        isCritical
-                          ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                          : isWarn
-                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                          : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                      }`}
-                    >
+                    <Badge variant={sevVariant} size="sm" className="uppercase font-bold tracking-wider">
                       {evt.severity}
-                    </span>
+                    </Badge>
 
                     {/* Action badge */}
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-black/20 dark:bg-white/10 text-gray-300">
+                    <Badge variant="neutral" size="sm" className="font-mono font-medium">
                       {evt.action}
-                    </span>
+                    </Badge>
 
                     {/* Target */}
                     <span className="text-xs font-semibold text-gray-900 dark:text-gray-100 font-mono">
@@ -399,7 +390,7 @@ export const AuditTab: React.FC<AuditTabProps> = ({ t }) => {
                     )}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>

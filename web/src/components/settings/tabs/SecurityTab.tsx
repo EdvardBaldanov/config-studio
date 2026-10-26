@@ -7,6 +7,7 @@ import {
   Check,
   ShieldCheck,
 } from 'lucide-react';
+import { Card, Input, Button, Toggle, Badge } from '../../ui';
 
 interface SecurityTabProps {
   authEnabled: boolean;
@@ -62,19 +63,20 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
   };
 
   return (
-    <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
-      {/* Direct Authentication */}
-      <div className="p-4 rounded-2xl bg-gray-100/60 dark:bg-black/20 border border-base-border space-y-3">
+    <div className="p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+      {/* Direct Authentication Card */}
+      <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+          <div className="flex items-center space-x-2">
             <Shield className="w-4 h-4 text-accent" />
-            <span>{t.authSettings}</span>
-          </label>
-          <input
-            type="checkbox"
+            <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+              {t.authSettings}
+            </span>
+          </div>
+          <Toggle
             checked={authEnabled}
-            onChange={(e) => setAuthEnabled(e.target.checked)}
-            className="w-4 h-4 text-accent rounded cursor-pointer accent-teal-500"
+            onChange={setAuthEnabled}
+            size="md"
           />
         </div>
 
@@ -83,52 +85,43 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
         </p>
 
         {authEnabled && (
-          <div className="space-y-3 pt-2">
-            <div>
-              <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t.username}
-              </label>
-              <input
-                type="text"
-                value={authUser}
-                onChange={(e) => setAuthUser(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white dark:bg-black/30 border border-base-border rounded-xl text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t.newPassword}
-              </label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={authPass}
-                onChange={(e) => setAuthPass(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white dark:bg-black/30 border border-base-border rounded-xl text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent"
-              />
-            </div>
+          <div className="space-y-3 pt-2 border-t border-base-border/60">
+            <Input
+              label={t.username}
+              type="text"
+              value={authUser}
+              onChange={(e) => setAuthUser(e.target.value)}
+              placeholder="admin"
+            />
+            <Input
+              label={t.newPassword}
+              type="password"
+              placeholder="••••••••"
+              value={authPass}
+              onChange={(e) => setAuthPass(e.target.value)}
+            />
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* REST API Access Setting */}
-      <div className="p-4 rounded-2xl bg-gray-100/60 dark:bg-black/20 border border-base-border space-y-3">
+      {/* REST API Access Setting Card */}
+      <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+          <div className="flex items-center space-x-2">
             <Cpu className="w-4 h-4 text-accent" />
-            <span>{t.enableApi}</span>
-          </label>
-          <input
-            type="checkbox"
+            <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+              {t.enableApi}
+            </span>
+          </div>
+          <Toggle
             checked={apiEnabled}
-            onChange={(e) => {
-              const val = e.target.checked;
+            onChange={(val) => {
               setApiEnabled(val);
               if (val && !apiKey) {
                 generateRandomKey();
               }
             }}
-            className="w-4 h-4 text-accent rounded cursor-pointer accent-teal-500"
+            size="md"
           />
         </div>
 
@@ -137,7 +130,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
         </p>
 
         {apiEnabled ? (
-          <div className="space-y-2 pt-2 border-t border-base-border">
+          <div className="space-y-2 pt-2 border-t border-base-border/60">
             <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300">
               {t.apiKey}
             </label>
@@ -148,26 +141,25 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                 value={apiKey}
                 className="flex-1 px-3 py-1.5 bg-white dark:bg-black/30 border border-base-border rounded-xl text-xs font-mono text-gray-900 dark:text-white select-all focus:outline-none"
               />
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleCopyKey}
-                className="px-2.5 py-1.5 rounded-xl border border-base-border hover:border-accent text-xs flex items-center space-x-1 bg-white dark:bg-white/5 cursor-pointer"
+                icon={copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                 title="Copy API Key"
               >
-                {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedKey ? t.copied : 'Copy'}</span>
-              </button>
-              <button
-                type="button"
+                {copiedKey ? t.copied : 'Copy'}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={generateRandomKey}
-                className="px-2.5 py-1.5 rounded-xl border border-base-border hover:border-accent text-xs flex items-center space-x-1 bg-white dark:bg-white/5 cursor-pointer"
+                icon={<Key className="w-3.5 h-3.5 text-accent" />}
                 title={t.generateApiKey}
-              >
-                <Key className="w-3.5 h-3.5 text-accent" />
-              </button>
+              />
             </div>
             <p className="text-[10px] text-gray-400 font-mono">
-              curl -H "X-API-Key: {apiKey ? apiKey.substring(0, 10) + '...' : 'YOUR_KEY'}" http://&lt;host&gt;:8080/api/fs/tree
+              curl -H &quot;X-API-Key: {apiKey ? apiKey.substring(0, 10) + '...' : 'YOUR_KEY'}&quot; http://&lt;host&gt;:8080/api/fs/tree
             </p>
           </div>
         ) : (
@@ -176,20 +168,21 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             <span>{t.apiDisabledNote}</span>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Structure Guard (Deep Pre-Save Validation) */}
-      <div className="p-4 rounded-2xl bg-gray-100/60 dark:bg-black/20 border border-base-border space-y-3">
+      {/* Structure Guard (Deep Pre-Save Validation) Card */}
+      <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+          <div className="flex items-center space-x-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Structure Guard & Pre-Save Guard</span>
-          </label>
-          <input
-            type="checkbox"
+            <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+              Structure Guard &amp; Pre-Save Guard
+            </span>
+          </div>
+          <Toggle
             checked={structureGuardEnabled}
-            onChange={(e) => setStructureGuardEnabled(e.target.checked)}
-            className="w-4 h-4 text-accent rounded cursor-pointer accent-teal-500"
+            onChange={setStructureGuardEnabled}
+            size="md"
           />
         </div>
 
@@ -198,7 +191,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
         </p>
 
         {structureGuardEnabled && (
-          <div className="space-y-2 pt-2 border-t border-base-border">
+          <div className="space-y-2 pt-2 border-t border-base-border/60">
             <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300">
               {t.criticalPatternsLabel}
             </label>
@@ -214,7 +207,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
             </p>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 };

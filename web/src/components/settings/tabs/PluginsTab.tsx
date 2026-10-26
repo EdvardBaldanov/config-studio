@@ -19,6 +19,7 @@ import { PluginItem, CatalogItem, PendingInstall } from '../../../types';
 import { api } from '../../../services/api';
 import { getPluginName, getPluginDescription } from '../../../utils/i18n';
 import { PluginConsentModal } from '../../PluginConsentModal';
+import { Card, Input, Button, Toggle, Badge } from '../../ui';
 
 interface PluginsTabProps {
   pluginExecUnrestricted: boolean;
@@ -33,7 +34,7 @@ interface PluginsTabProps {
 export const PluginsTab: React.FC<PluginsTabProps> = ({
   pluginExecUnrestricted,
   setPluginExecUnrestricted,
-  accentColor,
+  accentColor: _accentColor,
   onReloadPlugins,
   onNavigateToPluginSettings,
   language,
@@ -180,23 +181,15 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
   return (
     <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
       {/* Host Command Execution Security ("I know what I'm doing" mode) */}
-      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="flex items-center space-x-2 text-xs font-semibold text-amber-400 uppercase tracking-wider">
-            <ShieldAlert className="w-4 h-4 text-amber-400" />
-            <span>{t.unrestrictedMode}</span>
-          </label>
-          <input
-            type="checkbox"
-            checked={pluginExecUnrestricted}
-            onChange={(e) => setPluginExecUnrestricted(e.target.checked)}
-            className="w-4 h-4 rounded cursor-pointer accent-amber-500"
-          />
-        </div>
-        <p className="text-[11px] text-gray-300 leading-relaxed">
-          {t.unrestrictedHelp}
-        </p>
-      </div>
+      <Card className="p-4 bg-amber-500/10 border-amber-500/30 space-y-2">
+        <Toggle
+          checked={pluginExecUnrestricted}
+          onChange={setPluginExecUnrestricted}
+          icon={<ShieldAlert className="w-4 h-4 text-amber-400" />}
+          label={<span className="text-amber-400 font-semibold uppercase tracking-wider">{t.unrestrictedMode}</span>}
+          description={<span className="text-gray-300">{t.unrestrictedHelp}</span>}
+        />
+      </Card>
 
       {/* Installed Plugins List */}
       <div>
@@ -205,43 +198,42 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
             <Package size={14} className="text-accent" />
             <span>{t.installedPlugins}</span>
           </label>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={loadPlugins}
-            className="p-1 text-gray-400 hover:text-white rounded hover:bg-white/5 transition cursor-pointer"
             title={t.refreshPluginsList}
-          >
-            <RefreshCw size={13} className={isLoadingPlugins ? 'animate-spin' : ''} />
-          </button>
+            icon={<RefreshCw size={13} className={isLoadingPlugins ? 'animate-spin' : ''} />}
+          />
         </div>
 
         {pluginsList.length === 0 ? (
-          <div className="p-6 text-center text-xs text-gray-400 border border-base-border rounded-2xl bg-black/10 flex flex-col items-center justify-center space-y-1">
-            <Package className="w-8 h-8 text-gray-500 mb-1 opacity-60" />
-            <span className="font-medium text-gray-300">{t.noInstalledPlugins}</span>
-            <span className="text-[11px] text-gray-500">
+          <Card className="p-6 text-center space-y-1">
+            <Package className="w-8 h-8 text-gray-500 mx-auto mb-1 opacity-60" />
+            <div className="text-xs font-medium text-gray-300">{t.noInstalledPlugins}</div>
+            <div className="text-[11px] text-gray-500">
               {t.installHelpNote}
-            </span>
-          </div>
+            </div>
+          </Card>
         ) : (
           <div className="space-y-2.5">
             {pluginsList.map((p) => (
-              <div
+              <Card
                 key={p.id}
-                className="p-3.5 rounded-2xl border border-base-border bg-gray-50/50 dark:bg-black/20 flex items-start justify-between gap-3 hover:border-gray-500/30 transition"
+                className="p-3.5 flex items-start justify-between gap-3 hover:border-gray-500/30 transition"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2">
                     <span className="font-semibold text-xs text-gray-900 dark:text-white">
                       {getPluginName(p, language)}
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-base-border text-gray-400 font-mono">
+                    <Badge variant="neutral" size="sm">
                       v{p.version}
-                    </span>
+                    </Badge>
                     {p.builtin && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-medium">
+                      <Badge variant="accent" size="sm">
                         {t.builtin}
-                      </span>
+                      </Badge>
                     )}
                   </div>
 
@@ -256,9 +248,9 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                       </span>
                     )}
                     {p.fileMatches && p.fileMatches.length > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/40 text-gray-300 font-mono">
+                      <Badge variant="neutral" size="sm" className="font-mono">
                         {p.fileMatches.join(', ')}
-                      </span>
+                      </Badge>
                     )}
                     {p.permissions && p.permissions.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1">
@@ -274,19 +266,15 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                           const isUnknown = !isKnown;
 
                           return (
-                            <span
+                            <Badge
                               key={perm}
-                              className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
-                                isCritical || isUnknown
-                                  ? 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                                  : isService
-                                  ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20'
-                                  : 'bg-teal-500/10 text-teal-300 border border-teal-500/20'
-                              }`}
+                              variant={isCritical || isUnknown ? 'error' : isService ? 'info' : 'accent'}
+                              size="sm"
+                              className="font-mono text-[9px]"
                               title={isUnknown ? 'Неизвестное разрешение вне спецификации' : undefined}
                             >
                               {isUnknown ? `⚠️ ${perm}` : perm}
-                            </span>
+                            </Badge>
                           );
                         })}
                       </div>
@@ -295,13 +283,15 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                     {p.providesServices && p.providesServices.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1">
                         {p.providesServices.map((svc) => (
-                          <span
+                          <Badge
                             key={svc}
-                            className="text-[9px] px-1.5 py-0.2 rounded font-mono bg-teal-500/15 text-teal-300 border border-teal-500/25"
+                            variant="accent"
+                            size="sm"
+                            className="font-mono text-[9px]"
                             title={`Provides inter-plugin service '${svc}'`}
                           >
                             ⚡ {svc}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     )}
@@ -309,25 +299,29 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                     {p.dependencies && Object.keys(p.dependencies).length > 0 && (
                       <div className="flex flex-wrap items-center gap-1">
                         {Object.entries(p.dependencies).map(([depId, ver]) => (
-                          <span
+                          <Badge
                             key={depId}
-                            className="text-[9px] px-1.5 py-0.2 rounded font-mono bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                            variant="info"
+                            size="sm"
+                            className="font-mono text-[9px]"
                             title={`Requires plugin '${depId}'`}
                           >
                             📦 {depId} {ver ? `(${ver})` : ''}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     )}
 
                     {p.dependents && p.dependents.length > 0 && (
                       <div className="flex items-center gap-1">
-                        <span
-                          className="text-[9px] px-1.5 py-0.2 rounded font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1"
+                        <Badge
+                          variant="info"
+                          size="sm"
+                          className="font-medium text-[9px]"
                           title="Active plugins that depend on this plugin"
                         >
                           🔗 {language === 'en' ? 'Used by:' : 'Используется:'} {p.dependents.join(', ')}
-                        </span>
+                        </Badge>
                       </div>
                     )}
                   </div>
@@ -336,38 +330,21 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                 {/* Right controls */}
                 <div className="flex items-center space-x-2 shrink-0 pt-0.5">
                   {onNavigateToPluginSettings && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onNavigateToPluginSettings(p.id)}
-                      className="p-1.5 text-gray-400 hover:text-accent hover:bg-white/5 rounded-lg transition cursor-pointer"
+                      icon={<SettingsIcon size={14} />}
                       title={language === 'en' ? 'Plugin settings' : 'Настройки плагина'}
-                    >
-                      <SettingsIcon size={14} />
-                    </button>
+                    />
                   )}
 
                   <div className="flex items-center space-x-1.5">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={p.enabled}
-                      onClick={() => handleTogglePlugin(p.id, p.enabled)}
-                      title={p.enabled ? t.pluginEnabled : t.pluginDisabled}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
-                        p.enabled
-                          ? 'border-transparent shadow-xs'
-                          : 'border-gray-500/70 bg-gray-700/60 dark:bg-black/40'
-                      }`}
-                      style={{
-                        backgroundColor: p.enabled ? accentColor : undefined,
-                      }}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                          p.enabled ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                    <Toggle
+                      checked={p.enabled}
+                      onChange={() => handleTogglePlugin(p.id, p.enabled)}
+                      size="sm"
+                    />
                     <span
                       className={`text-[10px] font-medium transition-colors ${
                         p.enabled ? 'text-gray-200' : 'text-gray-500'
@@ -378,24 +355,23 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                   </div>
 
                   {!p.builtin && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={() => handleDeletePlugin(p.id, p.name)}
-                      className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition cursor-pointer"
+                      icon={<Trash2 size={13} />}
                       title={t.deletePluginTitle}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    />
                   )}
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
       </div>
 
       {/* Official & Remote Plugins Catalog */}
-      <div className="p-4 rounded-2xl bg-gray-100/60 dark:bg-black/20 border border-base-border space-y-3">
+      <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-1.5 mb-1">
@@ -408,14 +384,13 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
               {t.catalogSubtitle}
             </p>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={loadCatalog}
-            className="p-1 text-gray-400 hover:text-white rounded hover:bg-white/5 transition cursor-pointer"
             title={t.refreshCatalogTooltip}
-          >
-            <RefreshCw size={13} className={isLoadingCatalog ? 'animate-spin' : ''} />
-          </button>
+            icon={<RefreshCw size={13} className={isLoadingCatalog ? 'animate-spin' : ''} />}
+          />
         </div>
 
         {catalogItems.length === 0 ? (
@@ -438,13 +413,13 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                       <span className="font-semibold text-xs text-gray-900 dark:text-white">
                         {catItem.name}
                       </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-base-border text-gray-400 font-mono">
+                      <Badge variant="neutral" size="sm">
                         v{catItem.version}
-                      </span>
+                      </Badge>
                       {catItem.official && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 font-medium">
+                        <Badge variant="info" size="sm">
                           {t.catalogOfficialBadge}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                     <p className="text-[11px] text-gray-400 mt-0.5 truncate">
@@ -454,20 +429,20 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
 
                   <div>
                     {isInstalled ? (
-                      <span className="text-[11px] text-emerald-400 font-medium flex items-center space-x-1">
-                        <CheckCircle2 size={13} />
-                        <span>{t.catalogInstalled}</span>
-                      </span>
+                      <Badge variant="success" size="sm" icon={<CheckCircle2 size={13} />}>
+                        {t.catalogInstalled}
+                      </Badge>
                     ) : (
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onClick={() => handleInspectCatalogItem(catItem)}
                         disabled={isInstallingThis || isInstalling}
-                        className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-slate-900 hover:brightness-110 transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                        loading={isInstallingThis}
+                        icon={<Download size={13} />}
                       >
-                        <Download size={13} />
-                        <span>{isInstallingThis ? t.installing : t.installCatalogBtn}</span>
-                      </button>
+                        {isInstallingThis ? t.installing : t.installCatalogBtn}
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -475,10 +450,10 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
             })}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Install New Plugin Section (Zip vs URL) */}
-      <div className="p-4 rounded-2xl bg-gray-100/60 dark:bg-black/20 border border-base-border space-y-3">
+      <Card className="p-4 space-y-3">
         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
           {t.installPlugin}
         </label>
@@ -539,21 +514,22 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
         {installTab === 'url' && (
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={installUrl}
-                onChange={(e) => setInstallUrl(e.target.value)}
-                placeholder={t.pluginUrlPlaceholder}
-                className="flex-1 px-3 py-2 bg-white dark:bg-black/30 border border-base-border rounded-xl text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent"
-              />
-              <button
-                type="button"
+              <div className="flex-1">
+                <Input
+                  value={installUrl}
+                  onChange={(e) => setInstallUrl(e.target.value)}
+                  placeholder={t.pluginUrlPlaceholder}
+                />
+              </div>
+              <Button
+                variant="primary"
+                size="md"
                 onClick={handleInstallFromUrl}
                 disabled={isInstalling || !installUrl.trim()}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-900 bg-accent hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
+                loading={isInstalling}
               >
-                {isInstalling ? t.installing : t.installBtn}
-              </button>
+                {t.installBtn}
+              </Button>
             </div>
             <p className="text-[10px] text-gray-400">
               {t.githubUrlTip}
@@ -580,7 +556,7 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
             <span>{installMsg.text}</span>
           </div>
         )}
-      </div>
+      </Card>
 
       <PluginConsentModal
         isOpen={!!pendingInstall}

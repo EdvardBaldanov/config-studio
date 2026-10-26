@@ -12,6 +12,7 @@ import {
 import { PluginSource, ProfilePreview } from '../../../types';
 import { api } from '../../../services/api';
 import { ProfileImportModal } from '../../ProfileImportModal';
+import { Card, Input, Button, Toggle, Badge } from '../../ui';
 
 interface ProfileTabProps {
   onReloadSettings?: () => Promise<void>;
@@ -162,7 +163,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   return (
     <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
       {/* Card 1: 1-Click Profile Portability */}
-      <div className="p-5 rounded-2xl bg-gray-100/60 dark:bg-black/20 border border-base-border space-y-4">
+      <Card className="p-5 space-y-4">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-2xl bg-accent/15 text-accent flex items-center justify-center">
             <Share2 size={20} />
@@ -181,7 +182,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           <a
             href={api.getProfileExportUrl()}
             download="config-studio-profile.json"
-            className="flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold bg-accent text-gray-900 hover:opacity-90 shadow-sm transition-all cursor-pointer"
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold bg-accent hover:brightness-105 active:scale-95 text-white shadow-xs transition-all cursor-pointer"
           >
             <Download size={14} />
             <span>{t.exportProfileBtn}</span>
@@ -194,21 +195,21 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
             accept=".json"
             className="hidden"
           />
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={() => profileFileInputRef.current?.click()}
-            className="flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 bg-gray-200/80 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 border border-base-border transition-all cursor-pointer"
+            icon={<Upload size={14} />}
           >
-            <Upload size={14} />
-            <span>{t.importProfileBtn}</span>
-          </button>
+            {t.importProfileBtn}
+          </Button>
 
           <span className="text-[11px] text-teal-400/90 font-medium flex items-center gap-1.5 ml-auto">
             <Sparkles size={12} />
             {t.secretsExcludedNote}
           </span>
         </div>
-      </div>
+      </Card>
 
       {/* Card 2: Trusted Plugin Sources & Repositories */}
       <div className="space-y-3">
@@ -224,76 +225,68 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={handleSyncSources}
               disabled={isSyncingSources}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-200/80 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 border border-base-border text-gray-700 dark:text-gray-300 transition-all cursor-pointer disabled:opacity-50"
+              loading={isSyncingSources}
+              icon={<RefreshCw size={12} />}
             >
-              <RefreshCw size={12} className={isSyncingSources ? 'animate-spin' : ''} />
-              <span>{isSyncingSources ? t.syncingSources : t.syncSources}</span>
-            </button>
-            <button
-              type="button"
+              {isSyncingSources ? t.syncingSources : t.syncSources}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setShowAddSourceForm(!showAddSourceForm)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-gray-900 hover:opacity-90 shadow-2xs transition-all cursor-pointer"
+              icon={<Plus size={12} />}
             >
-              <Plus size={12} />
-              <span>{t.addSourceBtn}</span>
-            </button>
+              {t.addSourceBtn}
+            </Button>
           </div>
         </div>
 
         {/* Add Source Inline Form */}
         {showAddSourceForm && (
-          <div className="p-4 rounded-2xl border border-accent/40 bg-accent/5 space-y-3 animate-fade-in">
+          <Card className="p-4 border-accent/40 bg-accent/5 space-y-3 animate-in fade-in duration-100">
             <h4 className="text-xs font-bold text-gray-900 dark:text-white">
               {t.addSourceTitle}
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-                  {t.sourceNameLabel}
-                </label>
-                <input
-                  type="text"
-                  value={newSourceName}
-                  onChange={(e) => setNewSourceName(e.target.value)}
-                  placeholder={t.sourceNamePlaceholder}
-                  className="w-full px-3 py-1.5 rounded-xl border border-base-border bg-base-surface text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-                  {t.sourceUrlLabel}
-                </label>
-                <input
-                  type="text"
-                  value={newSourceUrl}
-                  onChange={(e) => setNewSourceUrl(e.target.value)}
-                  placeholder="https://raw.githubusercontent.com/.../registry.json"
-                  className="w-full px-3 py-1.5 rounded-xl border border-base-border bg-base-surface text-xs text-gray-900 dark:text-white focus:outline-none focus:border-accent font-mono"
-                />
-              </div>
+              <Input
+                label={t.sourceNameLabel}
+                type="text"
+                value={newSourceName}
+                onChange={(e) => setNewSourceName(e.target.value)}
+                placeholder={t.sourceNamePlaceholder}
+              />
+              <Input
+                label={t.sourceUrlLabel}
+                type="text"
+                value={newSourceUrl}
+                onChange={(e) => setNewSourceUrl(e.target.value)}
+                placeholder="https://raw.githubusercontent.com/.../registry.json"
+              />
             </div>
             <div className="flex justify-end space-x-2 pt-1">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowAddSourceForm(false)}
-                className="px-3 py-1.5 rounded-xl text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer"
               >
                 {t.cancel}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleAddSource}
                 disabled={!newSourceUrl.trim() || isAddingSource}
-                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-accent text-gray-900 hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                loading={isAddingSource}
               >
                 {isAddingSource ? t.addingSource : t.saveSourceBtn}
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Sources List */}
@@ -308,16 +301,15 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
             </div>
           ) : (
             sources.map((s) => (
-              <div
+              <Card
                 key={s.id}
-                className="p-3.5 rounded-2xl border border-base-border bg-gray-50 dark:bg-black/20 flex items-center justify-between gap-4"
+                className="p-3.5 flex items-center justify-between gap-4"
               >
                 <div className="flex items-center space-x-3 min-w-0">
-                  <input
-                    type="checkbox"
+                  <Toggle
                     checked={s.enabled}
                     onChange={() => handleToggleSource(s)}
-                    className="w-4 h-4 text-accent rounded accent-teal-500 cursor-pointer"
+                    size="sm"
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -325,13 +317,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                         {s.name}
                       </span>
                       {s.official ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-400 border border-teal-500/40">
+                        <Badge variant="accent" size="sm">
                           {t.officialBadge}
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/40">
+                        <Badge variant="neutral" size="sm">
                           {t.communityBadge}
-                        </span>
+                        </Badge>
                       )}
                       <span className="text-[11px] text-gray-400 font-mono">
                         ({s.pluginsCount} {t.pluginsCountSuffix})
@@ -360,7 +352,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                     </button>
                   )}
                 </div>
-              </div>
+              </Card>
             ))
           )}
         </div>

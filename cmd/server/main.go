@@ -34,8 +34,14 @@ func main() {
 		tlsFlag       = flag.Bool("tls", false, "Enable HTTPS with auto-generated self-signed certificate (or set CONFIG_TLS=true)")
 		tlsCert       = flag.String("tls-cert", "", "Path to custom TLS certificate file (optional)")
 		tlsKey        = flag.String("tls-key", "", "Path to custom TLS private key file (optional)")
+		versionFlag   = flag.Bool("version", false, "Show Config Studio version")
 	)
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println("Config Studio v2.0.0-beta")
+		return
+	}
 
 	// Check if install or uninstall was requested
 	if *installFlag {
@@ -150,7 +156,7 @@ func main() {
 		if useTLS {
 			protocol = "https"
 		}
-		log.Printf(" Config Studio is running at %s://%s", protocol, addr)
+		log.Printf(" Config Studio v2.0.0-beta is running at %s://%s", protocol, addr)
 		log.Printf(" Working directory: %s", *workdir)
 		log.Printf(" Data directory:    %s", *dataDir)
 		if useTLS {

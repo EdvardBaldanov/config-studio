@@ -516,3 +516,99 @@ func TestInspectURLWithCSPKGRelease(t *testing.T) {
 		t.Errorf("expected installed ID 'url-cspkg-test', got %s", installed.ID)
 	}
 }
+
+func TestPluginOptionalDependencies(t *testing.T) {
+	tempDir := t.TempDir()
+	pluginsDir := filepath.Join(tempDir, "plugins")
+	_ = os.MkdirAll(pluginsDir, 0755)
+
+	// 1. Install optional helper plugin (v1.0.0)
+	helperDir := filepath.Join(pluginsDir, "opt-helper")
+	_ = os.MkdirAll(helperDir, 0755)
+	_ = os.WriteFile(filepath.Join(helperDir, "plugin.json"), []byte(`{
+		"id": "opt-helper",
+		"name": "Optional Helper",
+		"version": "1.0.0",
+		"entry": "main.js",
+		"providesServices": ["helper"]
+	}`), 0644)
+	_ = os.WriteFile(filepath.Join(helperDir, "main.js"), []byte("console.log('helper');"), 0644)
+
+	// 2. Install consumer plugin with optionalDependencies
+	consumerDir := filepath.Join(pluginsDir, "opt-consumer")
+	_ = os.MkdirAll(consumerDir, 0755)
+	_ = os.WriteFile(filepath.Join(consumerDir, "plugin.json"), []byte(`{
+		"id": "opt-consumer",
+		"name": "Optional Consumer",
+		"version": "1.0.0",
+		"entry": "main.js",
+		"optionalDependencies": {
+			"opt-helper": ">=1.0.0",
+			"non-existent": "*"
+		},
+		"permissions": ["service:helper"]
+	}`), 0644)
+	_ = os.WriteFile(filepath.Join(consumerDir, "main.js"), []byte("console.log('consumer');"), 0644)
+
+	mgr, err := NewManager(tempDir, nil)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+
+	plugins, err := mgr.ListPlugins()
+	if err != nil {
+		t.Fatalf("ListPlugins failed: %v", err)
+	}
+
+	// Verify dependents mapping: opt-helper should NOT have opt-consumer in Dependents (because it's optional)
+	var helperPlugin *Plugin
+	for i := range plugins {
+		if plugins[i].ID == "opt-helper" {
+			helperPlugin = &plugins[i]
+		}
+	}
+	if helperPlugin == nil {
+		t.Fatalf("opt-helper plugin not found")
+	}
+	if len(helperPlugin.Dependents) != 0 {
+		t.Errorf("expected opt-helper to have 0 dependents, got %v", helperPlugin.Dependents)
+	}
+
+	// Test CheckDependencies: non-existent should be reported as missing with Optional=true
+	issues := mgr.CheckDependencies(Manifest{
+		ID: "test-manifest",
+		OptionalDependencies: map[string]string{
+			"opt-helper":   ">=1.0.0",
+			"non-existent": "*",
+		},
+	})
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d: %+v", len(issues), issues)
+	}
+	if issues[0].PluginID != "non-existent" || !issues[0].Optional || issues[0].Status != "missing" {
+		t.Errorf("expected optional missing issue for non-existent, got %+v", issues[0])
+	}
+
+	// Test Cascade Protection: disabling opt-helper MUST SUCCEED (because opt-consumer only depends optionally)
+	err = mgr.TogglePlugin("opt-helper", false)
+	if err != nil {
+		t.Fatalf("disabling opt-helper with optional dependent should succeed, got: %v", err)
+	}
+
+	// Now opt-helper is disabled; CheckDependencies should report opt-helper as disabled with Optional=true
+	issuesDisabled := mgr.CheckDependencies(Manifest{
+		ID: "test-manifest",
+		OptionalDependencies: map[string]string{
+			"opt-helper": ">=1.0.0",
+		},
+	})
+	if len(issuesDisabled) != 1 || issuesDisabled[0].PluginID != "opt-helper" || !issuesDisabled[0].Optional || issuesDisabled[0].Status != "disabled" {
+		t.Errorf("expected optional disabled issue for opt-helper, got %+v", issuesDisabled)
+	}
+
+	// Deleting opt-helper MUST also SUCCEED
+	err = mgr.DeletePlugin("opt-helper")
+	if err != nil {
+		t.Fatalf("deleting opt-helper with optional dependent should succeed, got: %v", err)
+	}
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -11,8 +11,9 @@ import {
   Server,
   Edit3,
   Layers,
+  Sparkles,
 } from 'lucide-react';
-import { PendingInstall } from '../types';
+import { PendingInstall, CatalogItem } from '../types';
 import { getPluginName, getPluginDescription } from '../utils/i18n';
 import { Modal, Button, Badge } from './ui';
 
@@ -20,9 +21,10 @@ interface PluginConsentModalProps {
   pending: PendingInstall | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: (selectedOptionalDeps?: string[]) => Promise<void>;
   isConfirming: boolean;
   language?: string;
+  catalogItems?: CatalogItem[];
 }
 
 interface PermMeta {
@@ -187,7 +189,27 @@ export const PluginConsentModal: React.FC<PluginConsentModalProps> = ({
   onConfirm,
   isConfirming,
   language = 'ru',
+  catalogItems = [],
 }) => {
+  const [selectedOptionalDeps, setSelectedOptionalDeps] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!pending || !isOpen) {
+      setSelectedOptionalDeps({});
+      return;
+    }
+    const initial: Record<string, boolean> = {};
+    const optIssues = (pending.dependencyIssues || []).filter((i) => i.optional);
+    for (const issue of optIssues) {
+      const catItem = catalogItems?.find((c) => c.id === issue.pluginId);
+      const canInstall = !!catItem?.downloadUrl || issue.status === 'disabled';
+      if (canInstall) {
+        initial[issue.pluginId] = true;
+      }
+    }
+    setSelectedOptionalDeps(initial);
+  }, [pending, isOpen, catalogItems]);
+
   if (!isOpen || !pending) return null;
 
   const isEn = language === 'en';
@@ -195,6 +217,9 @@ export const PluginConsentModal: React.FC<PluginConsentModalProps> = ({
   const metas = permissions.map((p) => getPermissionMeta(p, language));
   const hasCritical = metas.some((m) => m?.risk === 'critical');
   const hasUnknown = metas.some((m) => m?.isUnknown);
+
+  const hardIssues = (pending.dependencyIssues || []).filter((i) => !i.optional);
+  const optIssues = (pending.dependencyIssues || []).filter((i) => i.optional);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
@@ -298,6 +323,22 @@ export const PluginConsentModal: React.FC<PluginConsentModalProps> = ({
             </div>
           )}
 
+          {pending.manifest.optionalDependencies && Object.keys(pending.manifest.optionalDependencies).length > 0 && (
+            <div className="flex items-center gap-1.5 pt-1.5 text-xs text-gray-400">
+              <span className="text-gray-400">{isEn ? 'Optional extensions:' : 'Опциональные:'}</span>
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(pending.manifest.optionalDependencies).map(([depId, ver]) => (
+                  <span
+                    key={depId}
+                    className="px-1.5 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded font-mono text-[10px]"
+                  >
+                    🧩 {depId} {ver ? `(${ver})` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {pending.manifest.providesServices && pending.manifest.providesServices.length > 0 && (
             <div className="flex items-center gap-1.5 pt-1 text-xs text-gray-400">
               <span className="text-gray-400">{isEn ? 'Provides services:' : 'Предоставляет сервисы:'}</span>
@@ -315,17 +356,17 @@ export const PluginConsentModal: React.FC<PluginConsentModalProps> = ({
           )}
         </div>
 
-        {/* Missing / Incompatible Dependencies Notice */}
-        {pending.dependencyIssues && pending.dependencyIssues.length > 0 && (
+        {/* Required Missing / Incompatible Dependencies Alert */}
+        {hardIssues.length > 0 && (
           <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-300">
               <AlertTriangle size={15} className="text-amber-400 shrink-0" />
               <span>
-                {isEn ? 'Required plugin dependencies:' : 'Требуются зависимые плагины:'}
+                {isEn ? 'Required plugin dependencies:' : 'Требуются обязательные зависимости:'}
               </span>
             </div>
             <div className="space-y-1 pl-6 text-xs text-amber-200/90">
-              {pending.dependencyIssues.map((issue) => (
+              {hardIssues.map((issue) => (
                 <div key={issue.pluginId} className="flex items-center gap-2">
                   <span className="font-mono text-[11px] text-amber-300 font-semibold">{issue.pluginId}</span>
                   <span className="text-gray-400 text-[10px]">({issue.required || '*'})</span>
@@ -338,6 +379,77 @@ export const PluginConsentModal: React.FC<PluginConsentModalProps> = ({
                   </span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Optional / Recommended Dependencies with 1-Click Install Checkboxes */}
+        {optIssues.length > 0 && (
+          <div className="p-3.5 bg-purple-500/10 border border-purple-500/30 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-purple-300">
+                <Sparkles size={15} className="text-purple-400 shrink-0" />
+                <span>
+                  {isEn ? 'Recommended extensions (optional):' : 'Рекомендуемые расширения (опционально):'}
+                </span>
+              </div>
+              <span className="text-[10px] text-purple-300/70">
+                {isEn ? 'Can be installed together' : 'Можно установить вместе'}
+              </span>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              {optIssues.map((issue) => {
+                const catItem = catalogItems.find((c) => c.id === issue.pluginId);
+                const canInstall = !!catItem?.downloadUrl || issue.status === 'disabled';
+                const isChecked = selectedOptionalDeps[issue.pluginId] ?? canInstall;
+
+                return (
+                  <label
+                    key={issue.pluginId}
+                    className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition cursor-pointer select-none ${
+                      isChecked
+                        ? 'bg-purple-500/15 border-purple-500/40 text-purple-200'
+                        : 'bg-black/20 border-base-border text-gray-400 hover:border-gray-500'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={!canInstall}
+                      onChange={(e) =>
+                        setSelectedOptionalDeps((prev) => ({
+                          ...prev,
+                          [issue.pluginId]: e.target.checked,
+                        }))
+                      }
+                      className="mt-0.5 rounded cursor-pointer accent-purple-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-xs text-white">
+                          {catItem?.name || issue.pluginId}
+                        </span>
+                        <span className="font-mono text-[10px] text-purple-300">
+                          ({issue.required || '*'})
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-medium">
+                          {issue.status === 'disabled'
+                            ? (isEn ? 'Installed (disabled)' : 'Установлен (выключен)')
+                            : catItem
+                            ? (isEn ? 'Available in catalog' : 'Доступен в каталоге')
+                            : (isEn ? 'Not found in catalog' : 'Нет в каталоге')}
+                        </span>
+                      </div>
+                      {catItem?.description && (
+                        <p className="text-[11px] text-gray-300 mt-0.5 line-clamp-1">
+                          {catItem.description}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </div>
         )}
@@ -473,7 +585,10 @@ export const PluginConsentModal: React.FC<PluginConsentModalProps> = ({
         <Button
           variant={hasCritical ? 'danger' : 'primary'}
           size="sm"
-          onClick={onConfirm}
+          onClick={() => {
+            const toInstall = Object.keys(selectedOptionalDeps).filter((k) => selectedOptionalDeps[k]);
+            onConfirm(toInstall);
+          }}
           disabled={isConfirming}
           loading={isConfirming}
         >

@@ -422,9 +422,9 @@ func (m *Manager) getActiveDependentsLocked(id string) []string {
 	return dependents
 }
 
-// CheckDependencies checks whether all dependencies required by the manifest are satisfied.
+// CheckDependencies checks whether all dependencies (required and optional) declared by the manifest are satisfied.
 func (m *Manager) CheckDependencies(manifest Manifest) []DependencyIssue {
-	if len(manifest.Dependencies) == 0 {
+	if len(manifest.Dependencies) == 0 && len(manifest.OptionalDependencies) == 0 {
 		return nil
 	}
 
@@ -439,6 +439,8 @@ func (m *Manager) CheckDependencies(manifest Manifest) []DependencyIssue {
 	}
 
 	var issues []DependencyIssue
+
+	// 1. Hard / Required Dependencies
 	for depID, constraint := range manifest.Dependencies {
 		inst, exists := installedMap[depID]
 		if !exists {
@@ -446,6 +448,7 @@ func (m *Manager) CheckDependencies(manifest Manifest) []DependencyIssue {
 				PluginID: depID,
 				Required: constraint,
 				Status:   "missing",
+				Optional: false,
 			})
 			continue
 		}
@@ -455,6 +458,7 @@ func (m *Manager) CheckDependencies(manifest Manifest) []DependencyIssue {
 				Required:  constraint,
 				Installed: inst.Version,
 				Status:    "disabled",
+				Optional:  false,
 			})
 			continue
 		}
@@ -464,10 +468,46 @@ func (m *Manager) CheckDependencies(manifest Manifest) []DependencyIssue {
 				Required:  constraint,
 				Installed: inst.Version,
 				Status:    "incompatible",
+				Optional:  false,
 			})
 			continue
 		}
 	}
+
+	// 2. Soft / Optional Dependencies
+	for depID, constraint := range manifest.OptionalDependencies {
+		inst, exists := installedMap[depID]
+		if !exists {
+			issues = append(issues, DependencyIssue{
+				PluginID: depID,
+				Required: constraint,
+				Status:   "missing",
+				Optional: true,
+			})
+			continue
+		}
+		if !inst.Enabled {
+			issues = append(issues, DependencyIssue{
+				PluginID:  depID,
+				Required:  constraint,
+				Installed: inst.Version,
+				Status:    "disabled",
+				Optional:  true,
+			})
+			continue
+		}
+		if !MatchesVersionConstraint(inst.Version, constraint) {
+			issues = append(issues, DependencyIssue{
+				PluginID:  depID,
+				Required:  constraint,
+				Installed: inst.Version,
+				Status:    "incompatible",
+				Optional:  true,
+			})
+			continue
+		}
+	}
+
 	return issues
 }
 

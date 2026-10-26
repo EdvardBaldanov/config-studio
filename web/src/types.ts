@@ -48,6 +48,7 @@ export interface PluginManifest {
   fileMatches?: string[];
   minAppVersion?: string;
   dependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
   providesServices?: string[];
   locales?: Record<string, Record<string, string>>;
   localization?: LanguagePackDef;
@@ -67,6 +68,7 @@ export interface DependencyIssue {
   required: string;
   installed?: string;
   status: 'missing' | 'incompatible' | 'disabled';
+  optional?: boolean;
 }
 
 export interface PendingInstall {

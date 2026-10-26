@@ -26,9 +26,10 @@ type Manifest struct {
 	CSS              string                       `json:"css,omitempty"`              // optional "style.css"
 	Permissions      []string                     `json:"permissions,omitempty"`      // e.g. ["ui.panels", "terminal.exec", "network.bind", "service:ssh"]
 	FileMatches      []string                     `json:"fileMatches,omitempty"`      // e.g. [".html", ".php", ".js"]
-	MinAppVersion    string                       `json:"minAppVersion,omitempty"`
-	Dependencies     map[string]string            `json:"dependencies,omitempty"`     // pluginId -> versionConstraint (e.g. ">=1.0.0", "*")
-	ProvidesServices []string                     `json:"providesServices,omitempty"` // service identifiers exposed by this plugin
+	MinAppVersion        string                       `json:"minAppVersion,omitempty"`
+	Dependencies         map[string]string            `json:"dependencies,omitempty"`         // pluginId -> versionConstraint (e.g. ">=1.0.0", "*")
+	OptionalDependencies map[string]string            `json:"optionalDependencies,omitempty"` // pluginId -> versionConstraint for soft/optional dependencies
+	ProvidesServices     []string                     `json:"providesServices,omitempty"`     // service identifiers exposed by this plugin
 	Locales          map[string]map[string]string `json:"locales,omitempty"`         // Per-language dictionary for plugin's own UI
 	Localization     *LanguagePackDef             `json:"localization,omitempty"`    // For Core UI language pack plugins
 }
@@ -82,6 +83,7 @@ type DependencyIssue struct {
 	Required  string `json:"required"`
 	Installed string `json:"installed,omitempty"`
 	Status    string `json:"status"` // "missing", "incompatible", "disabled"
+	Optional  bool   `json:"optional,omitempty"`
 }
 
 // DependencyInUseError indicates that a plugin cannot be disabled/deleted because other plugins depend on it.

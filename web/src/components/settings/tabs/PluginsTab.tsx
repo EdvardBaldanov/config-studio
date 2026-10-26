@@ -149,13 +149,44 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
     }
   };
 
-  const handleConfirmConsent = async () => {
+  const handleConfirmConsent = async (selectedOptionalDeps: string[] = []) => {
     if (!pendingInstall) return;
     setIsConfirmingInstall(true);
+    const mainName = pendingInstall.manifest.name;
     try {
       await api.confirmPluginInstall(pendingInstall.tempKey);
+
+      // Install or enable any selected optional dependencies
+      let installedOptionalCount = 0;
+      for (const depId of selectedOptionalDeps) {
+        const existingPlugin = pluginsList.find((p) => p.id === depId);
+        if (existingPlugin && !existingPlugin.enabled) {
+          try {
+            await api.togglePlugin(depId, true);
+            installedOptionalCount++;
+          } catch (e) {
+            console.warn(`Failed to enable optional dependency ${depId}:`, e);
+          }
+        } else if (!existingPlugin) {
+          const catItem = catalogItems.find((c) => c.id === depId);
+          if (catItem?.downloadUrl) {
+            try {
+              const pendingOpt = await api.inspectPluginUrl(catItem.downloadUrl);
+              await api.confirmPluginInstall(pendingOpt.tempKey);
+              installedOptionalCount++;
+            } catch (e) {
+              console.warn(`Failed to install optional dependency ${depId}:`, e);
+            }
+          }
+        }
+      }
+
       setPendingInstall(null);
-      setInstallMsg({ text: `Плагин "${pendingInstall.manifest.name}" успешно установлен!` });
+      setInstallMsg({
+        text: `Плагин "${mainName}"${
+          installedOptionalCount > 0 ? ` (+${installedOptionalCount} рекомендуемых расширений)` : ''
+        } успешно установлен!`,
+      });
       setInstallUrl('');
       await loadPlugins();
       await loadCatalog();
@@ -307,6 +338,22 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
                             title={`Requires plugin '${depId}'`}
                           >
                             📦 {depId} {ver ? `(${ver})` : ''}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {p.optionalDependencies && Object.keys(p.optionalDependencies).length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {Object.entries(p.optionalDependencies).map(([depId, ver]) => (
+                          <Badge
+                            key={depId}
+                            variant="neutral"
+                            size="sm"
+                            className="font-mono text-[9px] text-purple-300 border-purple-500/30 bg-purple-500/10"
+                            title={`Optional extension '${depId}'`}
+                          >
+                            🧩 {depId} {ver ? `(${ver})` : ''} (опц.)
                           </Badge>
                         ))}
                       </div>
@@ -565,6 +612,7 @@ export const PluginsTab: React.FC<PluginsTabProps> = ({
         onConfirm={handleConfirmConsent}
         isConfirming={isConfirmingInstall}
         language={language}
+        catalogItems={catalogItems}
       />
     </div>
   );

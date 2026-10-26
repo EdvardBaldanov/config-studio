@@ -402,13 +402,16 @@ class PluginLoader {
             throw new Error(`[Services] Consumer plugin '${consumerPluginId}' not found`);
           }
 
-          // 1. Dependency validation: consumer must declare provider in dependencies
-          const hasDep =
+          // 1. Dependency validation: consumer must declare provider in dependencies or optionalDependencies
+          const hasHardDep =
             consumer.dependencies &&
             Object.prototype.hasOwnProperty.call(consumer.dependencies, reg.providerPluginId);
-          if (!hasDep) {
+          const hasOptDep =
+            consumer.optionalDependencies &&
+            Object.prototype.hasOwnProperty.call(consumer.optionalDependencies, reg.providerPluginId);
+          if (!hasHardDep && !hasOptDep) {
             throw new Error(
-              `[Services] Security violation: Plugin '${consumerPluginId}' cannot access service '${serviceName}'. Missing dependency '${reg.providerPluginId}' in manifest.dependencies`
+              `[Services] Security violation: Plugin '${consumerPluginId}' cannot access service '${serviceName}'. Missing dependency '${reg.providerPluginId}' in manifest.dependencies or manifest.optionalDependencies`
             );
           }
 
@@ -450,6 +453,20 @@ class PluginLoader {
 
         has: (serviceName: string) => {
           return this.registeredServices.has(serviceName);
+        },
+
+        getOptional: async (serviceName: string, consumerPluginId: string) => {
+          if (!serviceName || !consumerPluginId) {
+            return null;
+          }
+          if (!this.registeredServices.has(serviceName)) {
+            return null;
+          }
+          try {
+            return await (window as any).ConfigStudio.services.get(serviceName, consumerPluginId);
+          } catch {
+            return null;
+          }
         },
 
         list: () => {
@@ -553,6 +570,15 @@ class PluginLoader {
 
       if (p.dependencies) {
         for (const depId of Object.keys(p.dependencies)) {
+          const dep = pluginMap.get(depId);
+          if (dep) {
+            visit(dep);
+          }
+        }
+      }
+
+      if (p.optionalDependencies) {
+        for (const depId of Object.keys(p.optionalDependencies)) {
           const dep = pluginMap.get(depId);
           if (dep) {
             visit(dep);

@@ -10,33 +10,57 @@ import {
   Edit2,
   UploadCloud,
   CornerLeftUp,
+  ChevronDown,
+  ChevronRight,
+  Server,
+  Box,
+  Shield,
+  Terminal,
+  Globe,
+  Cpu,
+  Database,
+  Lock,
+  MoreVertical,
 } from 'lucide-react';
-import { FileItem, Settings, ContextMenuItem, ContextMenuTarget } from '../types';
+import {
+  FileItem,
+  Settings,
+  ContextMenuItem,
+  ContextMenuTarget,
+  WorkspaceRoot,
+} from '../types';
 import { translations } from '../utils/i18n';
 import { ContextMenu } from './ContextMenu';
 import { contextMenuRegistry } from '../services/contextMenuRegistry';
 
 interface FileExplorerProps {
-  items: FileItem[];
-  currentDir: string;
+  items?: FileItem[];
+  currentDir?: string;
   selectedFilePath: string | null;
   settings: Settings;
-  onSelectFile: (path: string) => void;
-  onNavigateDir: (path: string) => void;
-  onRefresh: () => void;
-  onCreateItem: (path: string, isDir: boolean) => void;
-  onDeleteItem: (path: string) => void;
-  onRenameItem: (oldPath: string, newPath: string) => void;
-  onUploadFile: (dirPath: string, file: File) => void;
+  workspaces?: WorkspaceRoot[];
+  itemsByRoot?: Record<string, { currentDir: string; items: FileItem[]; loading?: boolean }>;
+  onSelectFile: (path: string, root?: string) => void;
+  onNavigateDir: (path: string, root?: string) => void;
+  onRefresh: (rootId?: string) => void;
+  onCreateItem: (path: string, isDir: boolean, root?: string) => void;
+  onDeleteItem: (path: string, root?: string) => void;
+  onRenameItem: (oldPath: string, newPath: string, root?: string) => void;
+  onUploadFile: (dirPath: string, file: File, root?: string) => void;
+  onAddWorkspace?: () => void;
+  onEditWorkspace?: (root: WorkspaceRoot) => void;
+  onDeleteWorkspace?: (rootId: string) => void;
   isMobileDrawerOpen?: boolean;
   onCloseMobileDrawer?: () => void;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   items = [],
-  currentDir,
+  currentDir = '',
   selectedFilePath,
   settings,
+  workspaces = [],
+  itemsByRoot = {},
   onSelectFile,
   onNavigateDir,
   onRefresh,
@@ -44,10 +68,14 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onDeleteItem,
   onRenameItem,
   onUploadFile,
+  onAddWorkspace,
+  onEditWorkspace,
+  onDeleteWorkspace,
   isMobileDrawerOpen = false,
   onCloseMobileDrawer,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [collapsedRoots, setCollapsedRoots] = useState<Record<string, boolean>>({});
   const [contextMenuState, setContextMenuState] = useState<{
     x: number;
     y: number;
@@ -55,9 +83,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   } | null>(null);
   const [, setRegistryTick] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTargetRoot, setUploadTargetRoot] = useState<string>('');
 
   const t = translations[settings.language] || translations.ru;
-  const safeItems = items || [];
 
   useEffect(() => {
     return contextMenuRegistry.subscribe(() => {
@@ -65,10 +93,104 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     });
   }, []);
 
+  const toggleRootCollapse = (rootId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCollapsedRoots((prev) => ({
+      ...prev,
+      [rootId]: !prev[rootId],
+    }));
+  };
+
+  const renderRootIcon = (iconName?: string) => {
+    switch (iconName) {
+      case 'server':
+        return <Server className="w-4 h-4 text-sky-400 shrink-0" />;
+      case 'box':
+        return <Box className="w-4 h-4 text-emerald-400 shrink-0" />;
+      case 'shield':
+        return <Shield className="w-4 h-4 text-indigo-400 shrink-0" />;
+      case 'terminal':
+        return <Terminal className="w-4 h-4 text-amber-400 shrink-0" />;
+      case 'globe':
+        return <Globe className="w-4 h-4 text-teal-400 shrink-0" />;
+      case 'cpu':
+        return <Cpu className="w-4 h-4 text-rose-400 shrink-0" />;
+      case 'database':
+        return <Database className="w-4 h-4 text-purple-400 shrink-0" />;
+      case 'folder':
+      default:
+        return <Folder className="w-4 h-4 text-accent shrink-0" />;
+    }
+  };
+
   const getContextMenuItems = (target: ContextMenuTarget): ContextMenuItem[] => {
     const coreItems: ContextMenuItem[] = [];
 
+    // Right clicked a root header
+    if ((target as any).isRoot) {
+      const rootId = (target as any).rootId;
+      const root = workspaces.find((w) => w.id === rootId);
+
+      coreItems.push({
+        id: 'core.root.new-file',
+        label: t.ctxNewFileHere || 'Новый файл...',
+        icon: 'FilePlus',
+        group: 'edit',
+        order: 10,
+        onClick: () => handleCreatePrompt(false, rootId),
+      });
+
+      coreItems.push({
+        id: 'core.root.new-folder',
+        label: t.ctxNewFolderHere || 'Новая папка...',
+        icon: 'FolderPlus',
+        group: 'edit',
+        order: 20,
+        onClick: () => handleCreatePrompt(true, rootId),
+      });
+
+      coreItems.push({
+        id: 'core.root.refresh',
+        label: t.ctxRefresh || 'Обновить',
+        icon: 'RefreshCw',
+        group: 'tools',
+        order: 30,
+        onClick: () => onRefresh(rootId),
+      });
+
+      if (root && onEditWorkspace) {
+        coreItems.push({
+          id: 'core.root.edit',
+          label: t.editWorkspaceTitle || 'Настройки рабочей папки',
+          icon: 'Settings',
+          group: 'tools',
+          order: 40,
+          onClick: () => onEditWorkspace(root),
+        });
+      }
+
+      if (workspaces.length > 1 && onDeleteWorkspace && root) {
+        coreItems.push({
+          id: 'core.root.delete',
+          label: t.removeWorkspace || 'Удалить из рабочей области',
+          icon: 'Trash2',
+          group: 'danger',
+          order: 50,
+          onClick: () => {
+            const msg = (t.removeWorkspaceConfirm || 'Удалить "{name}" из рабочей области?').replace('{name}', root.name);
+            if (confirm(msg)) {
+              onDeleteWorkspace(rootId);
+            }
+          },
+        });
+      }
+
+      return coreItems;
+    }
+
     if (target.name) {
+      const itemRoot = (target as any).root;
+
       // 1. Group 'open'
       if (!target.isDir) {
         coreItems.push({
@@ -77,7 +199,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           icon: 'FileCode',
           group: 'open',
           order: 10,
-          onClick: () => onSelectFile(target.path),
+          onClick: () => onSelectFile(target.path, itemRoot),
         });
       } else {
         coreItems.push({
@@ -86,7 +208,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           icon: 'Folder',
           group: 'open',
           order: 10,
-          onClick: () => onNavigateDir(target.path),
+          onClick: () => onNavigateDir(target.path, itemRoot),
         });
       }
 
@@ -121,10 +243,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           group: 'edit',
           order: 10,
           onClick: () => {
-            const name = prompt(t.enterFileName);
-            if (!name || !name.trim()) return;
-            const fullPath = `${target.path}/${name.trim()}`;
-            onCreateItem(fullPath, false);
+            const name = prompt(t.enterFileName || 'Имя нового файла:');
+            if (name && name.trim()) {
+              const full = `${target.path}/${name.trim()}`;
+              onCreateItem(full, false, itemRoot);
+            }
           },
         });
         coreItems.push({
@@ -134,15 +257,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           group: 'edit',
           order: 20,
           onClick: () => {
-            const name = prompt(t.enterFolderName);
-            if (!name || !name.trim()) return;
-            const fullPath = `${target.path}/${name.trim()}`;
-            onCreateItem(fullPath, true);
+            const name = prompt(t.enterFolderName || 'Имя новой папки:');
+            if (name && name.trim()) {
+              const full = `${target.path}/${name.trim()}`;
+              onCreateItem(full, true, itemRoot);
+            }
           },
         });
       }
 
-      // Rename
+      // 4. Group 'edit' (Rename & Delete)
       coreItems.push({
         id: 'core.rename',
         label: t.ctxRename || 'Переименовать',
@@ -151,109 +275,71 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         order: 30,
         shortcut: 'F2',
         onClick: () => {
-          const newName = prompt(t.enterNewName, target.name);
+          const newName = prompt(t.enterNewName || 'Новое имя:', target.name);
           if (!newName || !newName.trim() || newName.trim() === target.name) return;
           const dir = target.path.includes('/')
             ? target.path.substring(0, target.path.lastIndexOf('/'))
             : '';
           const newPath = dir ? `${dir}/${newName.trim()}` : newName.trim();
-          onRenameItem(target.path, newPath);
+          onRenameItem(target.path, newPath, itemRoot);
         },
       });
 
-      // 4. Group 'danger' (Delete)
       coreItems.push({
         id: 'core.delete',
         label: t.ctxDelete || 'Удалить',
         icon: 'Trash2',
         group: 'danger',
-        order: 90,
+        order: 40,
         shortcut: 'Del',
         onClick: () => {
-          const msg = t.deleteConfirm.replace('{name}', target.name);
+          const msg = (t.deleteConfirm || 'Удалить "{name}"?').replace('{name}', target.name);
           if (confirm(msg)) {
-            onDeleteItem(target.path);
+            onDeleteItem(target.path, itemRoot);
           }
         },
       });
-    } else {
-      // Empty explorer background actions
-      coreItems.push({
-        id: 'core.new-file',
-        label: t.ctxNewFileHere || 'Новый файл...',
-        icon: 'FilePlus',
-        group: 'edit',
-        order: 10,
-        onClick: () => handleCreatePrompt(false),
-      });
-      coreItems.push({
-        id: 'core.new-folder',
-        label: t.ctxNewFolderHere || 'Новая папка...',
-        icon: 'FolderPlus',
-        group: 'edit',
-        order: 20,
-        onClick: () => handleCreatePrompt(true),
-      });
-      coreItems.push({
-        id: 'core.refresh',
-        label: t.ctxRefresh || 'Обновить',
-        icon: 'RefreshCw',
-        group: 'tools',
-        order: 10,
-        onClick: onRefresh,
-      });
     }
 
-    // Get plugin-registered items for this target
+    // Add plugin items
     const pluginItems = contextMenuRegistry.getItemsForTarget(target);
-
-    // Combine and sort
-    const groupOrder: Record<string, number> = {
-      open: 1,
-      clipboard: 2,
-      tools: 3,
-      edit: 4,
-      danger: 5,
-    };
-
-    const allItems = [...coreItems, ...pluginItems];
-    return allItems.sort((a, b) => {
-      const gA = groupOrder[a.group || 'tools'] ?? 99;
-      const gB = groupOrder[b.group || 'tools'] ?? 99;
-      if (gA !== gB) return gA - gB;
-      const oA = a.order ?? 50;
-      const oB = b.order ?? 50;
-      return oA - oB;
-    });
+    return [...coreItems, ...pluginItems];
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent, rootId?: string) => {
     e.preventDefault();
     setIsDragging(false);
+    const targetRoot = rootId || workspaces[0]?.id || '';
+    const dir = itemsByRoot[targetRoot]?.currentDir || currentDir || '';
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
-        onUploadFile(currentDir, e.dataTransfer.files[i]);
+        onUploadFile(dir, e.dataTransfer.files[i], targetRoot);
       }
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      const targetRoot = uploadTargetRoot || workspaces[0]?.id || '';
+      const dir = itemsByRoot[targetRoot]?.currentDir || currentDir || '';
       for (let i = 0; i < e.target.files.length; i++) {
-        onUploadFile(currentDir, e.target.files[i]);
+        onUploadFile(dir, e.target.files[i], targetRoot);
       }
     }
   };
 
-  const handleCreatePrompt = (isDir: boolean) => {
+  const handleCreatePrompt = (isDir: boolean, rootId?: string) => {
     const promptMsg = isDir ? t.enterFolderName : t.enterFileName;
     const name = prompt(promptMsg);
     if (!name || !name.trim()) return;
-    const fullPath = currentDir ? `${currentDir}/${name.trim()}` : name.trim();
-    onCreateItem(fullPath, isDir);
+
+    const targetRoot = rootId || workspaces[0]?.id || '';
+    const dir = itemsByRoot[targetRoot]?.currentDir || currentDir || '';
+    const fullPath = dir ? `${dir}/${name.trim()}` : name.trim();
+    onCreateItem(fullPath, isDir, targetRoot);
   };
 
-  const handleRenamePrompt = (item: FileItem, e: React.MouseEvent) => {
+  const handleRenamePrompt = (item: FileItem, e: React.MouseEvent, rootId?: string) => {
     e.stopPropagation();
     const newName = prompt(t.enterNewName, item.name);
     if (!newName || !newName.trim() || newName.trim() === item.name) return;
@@ -261,65 +347,156 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       ? item.path.substring(0, item.path.lastIndexOf('/'))
       : '';
     const newPath = dir ? `${dir}/${newName.trim()}` : newName.trim();
-    onRenameItem(item.path, newPath);
+    onRenameItem(item.path, newPath, rootId || item.root);
   };
 
-  const handleDeleteConfirm = (item: FileItem, e: React.MouseEvent) => {
+  const handleDeleteConfirm = (item: FileItem, e: React.MouseEvent, rootId?: string) => {
     e.stopPropagation();
     const msg = t.deleteConfirm.replace('{name}', item.name);
     if (confirm(msg)) {
-      onDeleteItem(item.path);
+      onDeleteItem(item.path, rootId || item.root);
     }
   };
 
   const getFileIcon = (item: FileItem) => {
     if (item.isDir) {
-      return <Folder className="w-4 h-4 text-accent flex-shrink-0" />;
+      return <Folder className="w-4 h-4 text-accent shrink-0" />;
     }
     const ext = (item.extension || '').toLowerCase();
     if (ext === '.yaml' || ext === '.yml') {
-      return <FileCode className="w-4 h-4 text-emerald-500 flex-shrink-0" />;
+      return <FileCode className="w-4 h-4 text-emerald-500 shrink-0" />;
     }
     if (ext === '.json') {
-      return <FileCode className="w-4 h-4 text-amber-500 flex-shrink-0" />;
+      return <FileCode className="w-4 h-4 text-amber-500 shrink-0" />;
     }
     if (ext === '.toml') {
-      return <FileCode className="w-4 h-4 text-purple-500 flex-shrink-0" />;
+      return <FileCode className="w-4 h-4 text-purple-500 shrink-0" />;
     }
-    return <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />;
+    return <FileText className="w-4 h-4 text-gray-400 shrink-0" />;
   };
 
-  const goUp = () => {
-    if (!currentDir) return;
-    const parts = currentDir.split('/');
+  const goUp = (rootId: string) => {
+    const wsData = itemsByRoot[rootId];
+    const cDir = wsData?.currentDir || currentDir;
+    if (!cDir) return;
+    const parts = cDir.split('/');
     parts.pop();
-    onNavigateDir(parts.join('/'));
+    onNavigateDir(parts.join('/'), rootId);
+  };
+
+  // Render a single root's files
+  const renderRootFiles = (ws: WorkspaceRoot) => {
+    const wsData = itemsByRoot[ws.id];
+    const wsItems = wsData?.items || (workspaces.length <= 1 ? items : []);
+    const wsDir = wsData?.currentDir || (workspaces.length <= 1 ? currentDir : '');
+
+    return (
+      <div className="space-y-0.5 pl-2 border-l border-base-border/50 ml-2.5 my-1">
+        {/* Parent dir up link */}
+        {wsDir && (
+          <div
+            onClick={() => goUp(ws.id)}
+            className="px-2 py-1.5 flex items-center space-x-1.5 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer rounded-lg transition-colors"
+            title="На уровень выше"
+          >
+            <CornerLeftUp className="w-3.5 h-3.5 text-accent" />
+            <span className="truncate font-mono">.. ({wsDir})</span>
+          </div>
+        )}
+
+        {wsItems.length === 0 ? (
+          <div className="text-[11px] text-gray-400 dark:text-gray-500 py-3 text-center">
+            {t.emptyFolder || 'Папка пуста'}
+          </div>
+        ) : (
+          wsItems.map((item) => {
+            const itemKey = item.fullRelPath || (item.root ? `${item.root}:${item.path}` : item.path);
+            const isSelected = selectedFilePath === itemKey || selectedFilePath === item.path;
+
+            return (
+              <div
+                key={itemKey}
+                onClick={() => {
+                  if (item.isDir) {
+                    onNavigateDir(item.path, ws.id);
+                  } else {
+                    onSelectFile(item.path, ws.id);
+                    onCloseMobileDrawer?.();
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenuState({
+                    x: e.clientX,
+                    y: e.clientY,
+                    target: {
+                      path: item.path,
+                      name: item.name,
+                      isDir: item.isDir,
+                      extension: item.extension || '',
+                      currentDir: wsDir,
+                      root: ws.id,
+                    } as any,
+                  });
+                }}
+                className={`group flex items-center justify-between px-2 py-1.5 rounded-xl text-xs cursor-pointer min-h-[30px] transition-colors ${
+                  isSelected
+                    ? 'bg-accent/15 text-gray-900 dark:text-white font-medium border border-accent/40 shadow-xs'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <div className="flex items-center space-x-2 truncate min-w-0">
+                  {getFileIcon(item)}
+                  <span className="truncate">{item.name}</span>
+                </div>
+
+                {/* Hover actions */}
+                {!ws.readOnly && (
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 pl-1 shrink-0 transition-opacity">
+                    <button
+                      onClick={(e) => handleRenamePrompt(item, e, ws.id)}
+                      className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                      title={t.rename}
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteConfirm(item, e, ws.id)}
+                      className="p-1 rounded hover:bg-red-500/20 text-gray-400 hover:text-red-500"
+                      title={t.delete}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    );
   };
 
   const explorerAside = (
-    <aside className="w-72 sm:w-64 bg-base-surface border-r border-base-border flex flex-col h-full select-none flex-shrink-0">
+    <aside className="w-72 sm:w-64 bg-base-surface border-r border-base-border flex flex-col h-full select-none shrink-0">
       {/* Title & Toolbar */}
       <div className="p-3 border-b border-base-border flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          {t.fileExplorer}
+          {t.workspaces || t.fileExplorer || 'Рабочие области'}
         </span>
         <div className="flex items-center space-x-1">
+          {onAddWorkspace && (
+            <button
+              onClick={onAddWorkspace}
+              className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-accent dark:text-gray-400 dark:hover:text-accent transition-colors"
+              title={t.addWorkspace || 'Добавить рабочую папку'}
+            >
+              <FolderPlus className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
-            onClick={() => handleCreatePrompt(false)}
-            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
-            title={t.newFile}
-          >
-            <FilePlus className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => handleCreatePrompt(true)}
-            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
-            title={t.newFolder}
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onRefresh}
+            onClick={() => onRefresh()}
             className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
             title={t.refresh}
           >
@@ -337,21 +514,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         </div>
       </div>
 
-      {/* Directory path & parent navigation */}
-      {currentDir && (
-        <div
-          onClick={goUp}
-          className="px-3 py-2 sm:py-1.5 flex items-center space-x-2 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer border-b border-base-border"
-          title="Go up"
-        >
-          <CornerLeftUp className="w-3.5 h-3.5 text-accent" />
-          <span className="truncate font-mono">.. ({currentDir})</span>
-        </div>
-      )}
-
-      {/* Files List */}
+      {/* Workspaces Multi-Root Tree */}
       <div
-        className="flex-1 overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar"
+        className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar"
         onContextMenu={(e) => {
           e.preventDefault();
           setContextMenuState({
@@ -367,71 +532,117 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           });
         }}
       >
-        {safeItems.length === 0 ? (
-          <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">
-            <Folder className="w-8 h-8 mx-auto mb-2 opacity-30 text-accent" />
-            <p>{t.emptyFolder}</p>
-          </div>
-        ) : (
-          safeItems.map((item) => {
-            const isSelected = selectedFilePath === item.path;
+        {workspaces && workspaces.length > 0 ? (
+          workspaces.map((ws) => {
+            const isCollapsed = collapsedRoots[ws.id] || false;
+
             return (
-              <div
-                key={item.path}
-                onClick={() => {
-                  if (item.isDir) {
-                    onNavigateDir(item.path);
-                  } else {
-                    onSelectFile(item.path);
-                    onCloseMobileDrawer?.();
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setContextMenuState({
-                    x: e.clientX,
-                    y: e.clientY,
-                    target: {
-                      path: item.path,
-                      name: item.name,
-                      isDir: item.isDir,
-                      extension: item.extension || '',
-                      currentDir,
-                    },
-                  });
-                }}
-                className={`group flex items-center justify-between px-2.5 py-2 sm:py-1.5 rounded-xl text-xs cursor-pointer min-h-[36px] sm:min-h-[30px] transition-colors ${
-                  isSelected
-                    ? 'bg-accent/15 text-gray-900 dark:text-white font-medium border border-accent/40 shadow-sm'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                <div className="flex items-center space-x-2 truncate min-w-0">
-                  {getFileIcon(item)}
-                  <span className="truncate">{item.name}</span>
+              <div key={ws.id} className="space-y-0.5">
+                {/* Root Folder Header */}
+                <div
+                  onClick={(e) => toggleRootCollapse(ws.id, e)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenuState({
+                      x: e.clientX,
+                      y: e.clientY,
+                      target: {
+                        isRoot: true,
+                        rootId: ws.id,
+                        name: ws.name,
+                        path: '',
+                        isDir: true,
+                        extension: '',
+                      } as any,
+                    });
+                  }}
+                  className="group flex items-center justify-between px-2 py-1.5 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                  title={`${ws.name} (${ws.path})`}
+                >
+                  <div className="flex items-center space-x-1.5 truncate min-w-0">
+                    <button
+                      onClick={(e) => toggleRootCollapse(ws.id, e)}
+                      className="p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                    {renderRootIcon(ws.icon)}
+                    <span className="truncate">{ws.name}</span>
+                    {ws.readOnly && (
+                      <span className="px-1.5 py-0.2 text-[9px] font-mono uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-md">
+                        RO
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Quick action buttons on root header hover */}
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-0.5 shrink-0 transition-opacity">
+                    {!ws.readOnly && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCreatePrompt(false, ws.id);
+                        }}
+                        className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        title={t.newFile || 'Новый файл'}
+                      >
+                        <FilePlus className="w-3 h-3" />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setContextMenuState({
+                          x: e.clientX,
+                          y: e.clientY,
+                          target: {
+                            isRoot: true,
+                            rootId: ws.id,
+                            name: ws.name,
+                            path: '',
+                            isDir: true,
+                            extension: '',
+                          } as any,
+                        });
+                      }}
+                      className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                      title="Меню"
+                    >
+                      <MoreVertical className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Action buttons on hover */}
-                <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 pl-1 flex-shrink-0 transition-opacity">
-                  <button
-                    onClick={(e) => handleRenamePrompt(item, e)}
-                    className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                    title={t.rename}
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={(e) => handleDeleteConfirm(item, e)}
-                    className="p-1 rounded hover:bg-red-500/20 text-gray-400 hover:text-red-500"
-                    title={t.delete}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
+                {/* Subfolder & Files of this root */}
+                {!isCollapsed && renderRootFiles(ws)}
               </div>
             );
           })
+        ) : (
+          /* Fallback for single root without workspaces array */
+          renderRootFiles({
+            id: 'default',
+            name: 'Configs',
+            path: '',
+            readOnly: false,
+            icon: 'folder',
+          })
+        )}
+
+        {/* Add Workspace Button in Tree */}
+        {onAddWorkspace && (
+          <button
+            onClick={onAddWorkspace}
+            className="w-full mt-3 py-2 px-3 border border-dashed border-base-border hover:border-accent/40 rounded-xl text-xs text-gray-500 hover:text-accent flex items-center justify-center space-x-1.5 transition-colors group"
+          >
+            <FolderPlus className="w-3.5 h-3.5 text-gray-400 group-hover:text-accent" />
+            <span>{t.addWorkspace || 'Добавить рабочую папку...'}</span>
+          </button>
         )}
       </div>
 
@@ -450,8 +661,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             setIsDragging(true);
           }}
           onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onDrop={(e) => handleDrop(e)}
+          onClick={() => {
+            setUploadTargetRoot(workspaces[0]?.id || 'default');
+            fileInputRef.current?.click();
+          }}
           className={`border-2 border-dashed rounded-2xl p-3 text-center cursor-pointer transition-all duration-200 ${
             isDragging
               ? 'border-accent bg-accent/10'
@@ -484,7 +698,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   return (
     <>
       {/* Desktop view (always visible on md+) */}
-      <div className="hidden md:flex h-full flex-shrink-0">
+      <div className="hidden md:flex h-full shrink-0">
         {explorerAside}
       </div>
 

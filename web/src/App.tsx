@@ -6,6 +6,7 @@ import { StructureOutline } from './components/StructureOutline';
 import { SettingsModal } from './components/SettingsModal';
 import { FilePropertiesModal } from './components/FilePropertiesModal';
 import { LoginScreen } from './components/LoginScreen';
+import { AddWorkspaceModal } from './components/AddWorkspaceModal';
 import { PluginSplitPanel } from './components/PluginSplitPanel';
 import { BottomDockStrip } from './components/BottomDockStrip';
 import { CommandConfirmModal } from './components/CommandConfirmModal';
@@ -13,7 +14,7 @@ import { PreSaveGuardModal } from './components/PreSaveGuardModal';
 import { api, PreSaveGuardError } from './services/api';
 import { pluginManager, PluginSystemState } from './services/pluginLoader';
 import { showGlobalToast } from './components/ui';
-import { Settings, FileItem, OpenFile, FileRevision, GuardIssue, GuardValidationResult } from './types';
+import { Settings, FileItem, OpenFile, FileRevision, GuardIssue, GuardValidationResult, WorkspaceRoot } from './types';
 import { parseContentToOutline } from './utils/astParser';
 import { translations, Language, DEFAULT_LANGUAGE } from './utils/i18n';
 import { adjustBrightness, getLuminance } from './utils/color';
@@ -44,6 +45,11 @@ export const App: React.FC = () => {
     authenticated: boolean;
     user: string;
   }>({ authRequired: false, authenticated: true, user: 'guest' });
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceRoot[]>([]);
+  const [itemsByRoot, setItemsByRoot] = useState<Record<string, { currentDir: string; items: FileItem[]; loading?: boolean }>>({});
+  const [isAddWorkspaceOpen, setIsAddWorkspaceOpen] = useState<boolean>(false);
+  const [editingWorkspace, setEditingWorkspace] = useState<WorkspaceRoot | null>(null);
 
   const [currentDir, setCurrentDir] = useState<string>('');
   const [dirItems, setDirItems] = useState<FileItem[]>([]);
@@ -165,7 +171,7 @@ export const App: React.FC = () => {
       setAuthStatus(status);
       if (!status.authRequired || status.authenticated) {
         await loadSettings();
-        await loadDir('');
+        await loadWorkspaces();
       }
     } catch (e) {
       console.error('Failed to init auth:', e);
@@ -181,15 +187,42 @@ export const App: React.FC = () => {
     }
   };
 
-  const loadDir = async (path: string) => {
+  const loadWorkspaces = async () => {
     try {
-      const res = await api.getTree(path);
-      setCurrentDir(res.path || '');
-      setDirItems(res.items || []);
+      const res = await api.getWorkspaces();
+      const wsList = res.workspaces || [];
+      setWorkspaces(wsList);
+      for (const ws of wsList) {
+        await loadDir('', ws.id);
+      }
+    } catch (err) {
+      console.error('Failed to load workspaces:', err);
+      // Fallback: load default root
+      await loadDir('');
+    }
+  };
+
+  const loadDir = async (path: string, rootId?: string) => {
+    const root = rootId || workspaces[0]?.id || 'default';
+    try {
+      const res = await api.getTree(path, root);
+      const targetDir = res.path || '';
+      const targetItems = res.items || [];
+
+      setItemsByRoot((prev) => ({
+        ...prev,
+        [root]: { currentDir: targetDir, items: targetItems, loading: false },
+      }));
+
+      // Keep legacy single dir state in sync with first workspace
+      if (!workspaces.length || root === (workspaces[0]?.id || 'default')) {
+        setCurrentDir(targetDir);
+        setDirItems(targetItems);
+      }
 
       // Auto-open first yaml/json file if no tabs open
-      if (tabs.length === 0 && res.items && res.items.length > 0) {
-        const first = res.items.find(
+      if (tabs.length === 0 && targetItems.length > 0) {
+        const first = targetItems.find(
           (i) =>
             !i.isDir &&
             (i.extension === '.yml' ||
@@ -197,31 +230,52 @@ export const App: React.FC = () => {
               i.extension === '.json')
         );
         if (first) {
-          openFile(first.path);
+          openFile(first.path, root);
         }
       }
     } catch (err: any) {
-      console.error('Failed to list directory:', err);
+      console.error(`Failed to list directory for root ${root}:`, err);
     }
   };
 
   // Open file into multi-tab system
-  const openFile = async (filePath: string) => {
-    // If tab already open, switch to it
-    const existing = tabs.find((t) => t.path === filePath);
+  const openFile = async (filePath: string, rootId?: string) => {
+    let root = rootId || '';
+    let cleanPath = filePath;
+
+    // Check if filePath is compound "root:path"
+    if (!root && filePath.includes(':')) {
+      const idx = filePath.indexOf(':');
+      root = filePath.substring(0, idx);
+      cleanPath = filePath.substring(idx + 1);
+    }
+    if (!root) {
+      root = workspaces[0]?.id || 'default';
+    }
+
+    const targetKey = `${root}:${cleanPath}`;
+    const existing = tabs.find(
+      (t) => (t.fullRelPath && t.fullRelPath === targetKey) || t.path === cleanPath
+    );
     if (existing) {
-      setActiveTabPath(filePath);
+      setActiveTabPath(existing.path);
       return;
     }
 
     try {
-      const fileData = await api.getFile(filePath);
+      const fileData = await api.getFile(cleanPath, root);
+      const fullRelPath =
+        fileData.fullRelPath || `${fileData.root || root}:${fileData.path}`;
+
       const newTab: OpenFile = {
         path: fileData.path,
+        root: fileData.root || root,
+        fullRelPath,
         name: fileData.name,
         content: fileData.content,
         initialContent: fileData.content,
         isDirty: false,
+        readOnly: fileData.readOnly,
         language: fileData.name.split('.').pop() || '',
         revisions: [],
       };
@@ -362,7 +416,13 @@ export const App: React.FC = () => {
     if (!currentFile) return;
     setIsSaving(true);
     try {
-      await api.saveFile(currentFile.path, currentFile.content, true, force);
+      await api.saveFile(
+        currentFile.path,
+        currentFile.content,
+        true,
+        force,
+        currentFile.root
+      );
 
       // Create a revision snapshot
       const currentLines = currentFile.content.split('\n').length;
@@ -392,6 +452,10 @@ export const App: React.FC = () => {
       setPreSaveGuardIssue(null);
       pluginManager.notifyFileSave(currentFile);
       showGlobalToast(`${currentFile.name} успешно сохранен`, 'success');
+
+      const rootToRefresh = currentFile.root || workspaces[0]?.id || 'default';
+      const dirToRefresh = itemsByRoot[rootToRefresh]?.currentDir || '';
+      await loadDir(dirToRefresh, rootToRefresh);
     } catch (err: any) {
       if (err instanceof PreSaveGuardError) {
         setPreSaveGuardIssue(err.guard);
@@ -442,38 +506,43 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleCreateItem = async (path: string, isDir: boolean) => {
+  const handleCreateItem = async (path: string, isDir: boolean, rootId?: string) => {
+    const root = rootId || workspaces[0]?.id || 'default';
     try {
-      await api.createItem(path, isDir);
-      await loadDir(currentDir);
+      await api.createItem(path, isDir, root);
+      const dirToRefresh = itemsByRoot[root]?.currentDir || '';
+      await loadDir(dirToRefresh, root);
       if (!isDir) {
-        await openFile(path);
+        await openFile(path, root);
       }
     } catch (err: any) {
       alert(`Error creating item: ${err.message}`);
     }
   };
 
-  const handleDeleteItem = async (path: string) => {
+  const handleDeleteItem = async (path: string, rootId?: string) => {
+    const root = rootId || workspaces[0]?.id || 'default';
     try {
-      await api.deleteItem(path);
-      setTabs((prev) => prev.filter((t) => t.path !== path));
+      await api.deleteItem(path, root);
+      setTabs((prev) => prev.filter((t) => t.path !== path || (root && t.root !== root)));
       if (activeTabPath === path) {
         const remaining = tabs.filter((t) => t.path !== path);
         setActiveTabPath(remaining.length > 0 ? remaining[0].path : null);
       }
-      await loadDir(currentDir);
+      const dirToRefresh = itemsByRoot[root]?.currentDir || '';
+      await loadDir(dirToRefresh, root);
     } catch (err: any) {
       alert(`Error deleting item: ${err.message}`);
     }
   };
 
-  const handleRenameItem = async (oldPath: string, newPath: string) => {
+  const handleRenameItem = async (oldPath: string, newPath: string, rootId?: string) => {
+    const root = rootId || workspaces[0]?.id || 'default';
     try {
-      await api.renameItem(oldPath, newPath);
+      await api.renameItem(oldPath, newPath, root);
       setTabs((prev) =>
         prev.map((t) =>
-          t.path === oldPath
+          t.path === oldPath && (!root || t.root === root)
             ? { ...t, path: newPath, name: newPath.split('/').pop() || newPath }
             : t
         )
@@ -481,19 +550,43 @@ export const App: React.FC = () => {
       if (activeTabPath === oldPath) {
         setActiveTabPath(newPath);
       }
-      await loadDir(currentDir);
+      const dirToRefresh = itemsByRoot[root]?.currentDir || '';
+      await loadDir(dirToRefresh, root);
     } catch (err: any) {
       alert(`Error renaming item: ${err.message}`);
     }
   };
 
-  const handleUploadFile = async (dirPath: string, file: File) => {
+  const handleUploadFile = async (dirPath: string, file: File, rootId?: string) => {
+    const root = rootId || workspaces[0]?.id || 'default';
     try {
-      const savedPath = await api.uploadFile(dirPath, file);
-      await loadDir(currentDir);
-      await openFile(savedPath);
+      const savedPath = await api.uploadFile(dirPath, file, root);
+      const dirToRefresh = itemsByRoot[root]?.currentDir || '';
+      await loadDir(dirToRefresh, root);
+      await openFile(savedPath, root);
     } catch (err: any) {
       alert(`Error uploading file: ${err.message}`);
+    }
+  };
+
+  const handleSaveWorkspace = async (rootData: Partial<WorkspaceRoot>) => {
+    if (editingWorkspace) {
+      await api.updateWorkspace(editingWorkspace.id, rootData);
+      showGlobalToast('Рабочая область обновлена', 'success');
+    } else {
+      await api.addWorkspace(rootData);
+      showGlobalToast('Рабочая папка успешно добавлена', 'success');
+    }
+    await loadWorkspaces();
+  };
+
+  const handleDeleteWorkspace = async (rootId: string) => {
+    try {
+      await api.deleteWorkspace(rootId);
+      showGlobalToast('Рабочая папка отмонтирована', 'info');
+      await loadWorkspaces();
+    } catch (err: any) {
+      alert(`Ошибка удаления рабочей области: ${err.message}`);
     }
   };
 
@@ -571,19 +664,36 @@ export const App: React.FC = () => {
 
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: File Explorer */}
+        {/* Left: File Explorer with Multi-Root Workspace support */}
         <FileExplorer
           items={dirItems}
           currentDir={currentDir}
-          selectedFilePath={currentFile?.path || null}
+          selectedFilePath={currentFile?.fullRelPath || currentFile?.path || null}
           settings={settings}
+          workspaces={workspaces}
+          itemsByRoot={itemsByRoot}
           onSelectFile={openFile}
           onNavigateDir={loadDir}
-          onRefresh={() => loadDir(currentDir)}
+          onRefresh={(rootId) => {
+            if (rootId) {
+              loadDir(itemsByRoot[rootId]?.currentDir || '', rootId);
+            } else {
+              loadWorkspaces();
+            }
+          }}
           onCreateItem={handleCreateItem}
           onDeleteItem={handleDeleteItem}
           onRenameItem={handleRenameItem}
           onUploadFile={handleUploadFile}
+          onAddWorkspace={() => {
+            setEditingWorkspace(null);
+            setIsAddWorkspaceOpen(true);
+          }}
+          onEditWorkspace={(ws) => {
+            setEditingWorkspace(ws);
+            setIsAddWorkspaceOpen(true);
+          }}
+          onDeleteWorkspace={handleDeleteWorkspace}
           isMobileDrawerOpen={isMobileFileDrawerOpen}
           onCloseMobileDrawer={() => setIsMobileFileDrawerOpen(false)}
         />
@@ -701,6 +811,18 @@ export const App: React.FC = () => {
         isSaving={isSaving}
         onClose={handleCloseGuardModal}
         onForceSave={() => handleSaveFile(true)}
+      />
+
+      {/* Add / Edit Workspace Modal */}
+      <AddWorkspaceModal
+        isOpen={isAddWorkspaceOpen}
+        onClose={() => {
+          setIsAddWorkspaceOpen(false);
+          setEditingWorkspace(null);
+        }}
+        onSave={handleSaveWorkspace}
+        editingWorkspace={editingWorkspace}
+        settings={settings}
       />
     </div>
   );

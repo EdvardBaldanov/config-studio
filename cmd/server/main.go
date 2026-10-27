@@ -85,8 +85,13 @@ func main() {
 		log.Fatalf("Failed to initialize configuration manager: %v", err)
 	}
 
-	// Initialize filesystem service
-	fsSvc, err := appfs.NewService(*workdir)
+	// Initialize workspace manager and filesystem service
+	workspaceMgr, err := appfs.NewWorkspaceManager(*dataDir, *workdir)
+	if err != nil {
+		log.Fatalf("Failed to initialize workspace manager: %v", err)
+	}
+
+	fsSvc, err := appfs.NewServiceWithManager(workspaceMgr)
 	if err != nil {
 		log.Fatalf("Failed to initialize filesystem service: %v", err)
 	}

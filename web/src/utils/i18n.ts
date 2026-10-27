@@ -274,6 +274,20 @@ const builtInTranslations = {
     ctxDelete: 'Удалить',
     ctxRefresh: 'Обновить',
 
+    // Workspaces
+    workspaces: 'Рабочие области',
+    addWorkspace: 'Добавить папку',
+    addWorkspaceTitle: 'Добавить рабочую папку в проект',
+    editWorkspaceTitle: 'Настройки рабочей папки',
+    workspaceId: 'Идентификатор (ID)',
+    workspaceName: 'Название папки',
+    workspacePath: 'Путь на сервере / ПК',
+    workspaceIcon: 'Иконка',
+    workspaceReadOnly: 'Режим только для чтения (Read-Only)',
+    workspaceReadOnlyBadge: 'Только чтение',
+    removeWorkspaceConfirm: 'Удалить папку "{name}" из рабочей области?\n\nФайлы на диске останутся нетронутыми, удалится только запись из конфигурации.',
+    removeWorkspace: 'Удалить из рабочей области',
+
     // Secrets & Credentials Store
     tabSecrets: 'Секреты и Ключи',
     secretsTitle: 'Безопасное хранилище секретов (OS Keychain)',
@@ -571,6 +585,20 @@ const builtInTranslations = {
     ctxRename: 'Rename',
     ctxDelete: 'Delete',
     ctxRefresh: 'Refresh',
+
+    // Workspaces
+    workspaces: 'Workspaces',
+    addWorkspace: 'Add Folder',
+    addWorkspaceTitle: 'Add Workspace Folder',
+    editWorkspaceTitle: 'Workspace Settings',
+    workspaceId: 'Identifier (ID)',
+    workspaceName: 'Folder Name',
+    workspacePath: 'Path on Host / Server',
+    workspaceIcon: 'Icon',
+    workspaceReadOnly: 'Read-Only Mode',
+    workspaceReadOnlyBadge: 'Read-Only',
+    removeWorkspaceConfirm: 'Remove "{name}" from workspace?\n\nFiles on disk will remain untouched, only the workspace reference will be removed.',
+    removeWorkspace: 'Remove from Workspace',
 
     // Secrets & Credentials Store
     tabSecrets: 'Secrets & Keys',

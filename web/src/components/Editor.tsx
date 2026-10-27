@@ -275,6 +275,14 @@ export const Editor: React.FC<EditorProps> = ({
                 }}
               >
                 <span className="truncate">{tab.name}</span>
+                {tab.readOnly && (
+                  <span
+                    className="px-1 text-[9px] font-mono uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded shrink-0"
+                    title="Только для чтения (Read-Only)"
+                  >
+                    RO
+                  </span>
+                )}
                 {tab.isDirty && (
                   <span
                     className="w-2 h-2 rounded-full inline-block animate-pulse flex-shrink-0"
@@ -399,6 +407,7 @@ export const Editor: React.FC<EditorProps> = ({
           onMount={handleEditorMount}
           onChange={(value) => onChangeContent(value || '')}
           options={{
+            readOnly: currentFile.readOnly || false,
             fontSize: 13,
             fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
             minimap: { enabled: !isMobile, scale: 1 },

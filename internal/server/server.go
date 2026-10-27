@@ -85,6 +85,13 @@ func (s *Server) setupRoutes() {
 	mux.HandleFunc("POST /api/settings/icon", s.handleUploadIcon)
 	mux.HandleFunc("GET /api/branding/icon", s.handleGetIcon)
 
+	// Workspace APIs (Multi-Root)
+	mux.HandleFunc("GET /api/workspaces", s.handleListWorkspaces)
+	mux.HandleFunc("POST /api/workspaces", s.handleAddWorkspace)
+	mux.HandleFunc("PUT /api/workspaces/{id}", s.handleUpdateWorkspace)
+	mux.HandleFunc("DELETE /api/workspaces/{id}", s.handleDeleteWorkspace)
+	mux.HandleFunc("POST /api/workspaces/reload", s.handleReloadWorkspaces)
+
 	// Filesystem APIs
 	mux.HandleFunc("GET /api/fs/tree", s.handleGetTree)
 	mux.HandleFunc("GET /api/fs/file", s.handleGetFile)
@@ -480,8 +487,9 @@ func (s *Server) handleGetIcon(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
+	rootID := r.URL.Query().Get("root")
 	relPath := r.URL.Query().Get("path")
-	items, err := s.fs.ListDir(relPath)
+	items, err := s.fs.ListDirRoot(rootID, relPath)
 	if err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
@@ -490,39 +498,53 @@ func (s *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 		items = []appfs.FileItem{}
 	}
 	jsonResponse(w, http.StatusOK, map[string]any{
+		"root":  rootID,
 		"path":  relPath,
 		"items": items,
 	})
 }
 
 func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
+	rootID := r.URL.Query().Get("root")
 	relPath := r.URL.Query().Get("path")
 	if relPath == "" {
 		jsonError(w, http.StatusBadRequest, "path parameter is required")
 		return
 	}
 
-	content, err := s.fs.ReadFile(relPath)
+	content, err := s.fs.ReadFileRoot(rootID, relPath)
 	if err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
+	_, rootObj, _ := s.fs.SafePathRoot(rootID, relPath)
+
+	cleanRel := strings.TrimPrefix(relPath, "/")
+	fullRel := cleanRel
+	if rootObj.ID != "" && !strings.Contains(cleanRel, ":") {
+		fullRel = rootObj.ID + ":" + cleanRel
+	}
+
 	jsonResponse(w, http.StatusOK, map[string]any{
-		"path":    relPath,
-		"name":    filepath.Base(relPath),
-		"content": string(content),
+		"root":        rootObj.ID,
+		"path":        cleanRel,
+		"fullRelPath": fullRel,
+		"name":        filepath.Base(cleanRel),
+		"readOnly":    rootObj.ReadOnly,
+		"content":     string(content),
 	})
 }
 
 func (s *Server) handleGetFileInfo(w http.ResponseWriter, r *http.Request) {
+	rootID := r.URL.Query().Get("root")
 	relPath := r.URL.Query().Get("path")
 	if relPath == "" {
 		jsonError(w, http.StatusBadRequest, "path parameter is required")
 		return
 	}
 
-	fullPath, err := s.fs.SafePath(relPath)
+	fullPath, rootObj, err := s.fs.SafePathRoot(rootID, relPath)
 	if err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
@@ -545,9 +567,18 @@ func (s *Server) handleGetFileInfo(w http.ResponseWriter, r *http.Request) {
 	hashHex := hex.EncodeToString(hash[:])
 	lineCount := strings.Count(string(content), "\n") + 1
 
+	cleanRel := strings.TrimPrefix(relPath, "/")
+	fullRel := cleanRel
+	if rootObj.ID != "" && !strings.Contains(cleanRel, ":") {
+		fullRel = rootObj.ID + ":" + cleanRel
+	}
+
 	jsonResponse(w, http.StatusOK, map[string]any{
-		"path":       relPath,
-		"name":       filepath.Base(relPath),
+		"root":        rootObj.ID,
+		"path":        cleanRel,
+		"fullRelPath": fullRel,
+		"name":        filepath.Base(cleanRel),
+		"readOnly":    rootObj.ReadOnly,
 		"size":       len(content),
 		"lineCount":  lineCount,
 		"charCount":  len(string(content)),
@@ -567,6 +598,7 @@ func (s *Server) getAuditUser(r *http.Request) string {
 
 func (s *Server) handleSaveFile(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		Root    string `json:"root"`
 		Path    string `json:"path"`
 		Content string `json:"content"`
 		Backup  bool   `json:"backup"`
@@ -607,7 +639,7 @@ func (s *Server) handleSaveFile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := s.fs.WriteFile(req.Path, []byte(req.Content), req.Backup); err != nil {
+	if err := s.fs.WriteFileRoot(req.Root, req.Path, []byte(req.Content), req.Backup); err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -666,6 +698,7 @@ func (s *Server) handleValidateGuard(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		Root  string `json:"root"`
 		Path  string `json:"path"`
 		IsDir bool   `json:"isDir"`
 	}
@@ -680,7 +713,7 @@ func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.fs.CreateItem(req.Path, req.IsDir); err != nil {
+	if err := s.fs.CreateItemRoot(req.Root, req.Path, req.IsDir); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -692,7 +725,7 @@ func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
 			Action:   "file.create",
 			Severity: audit.SeverityInfo,
 			Target:   req.Path,
-			Details:  map[string]any{"isDir": req.IsDir},
+			Details:  map[string]any{"root": req.Root, "isDir": req.IsDir},
 		})
 	}
 
@@ -701,6 +734,7 @@ func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		Root string `json:"root"`
 		Path string `json:"path"`
 	}
 
@@ -714,7 +748,7 @@ func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.fs.DeleteItem(req.Path); err != nil {
+	if err := s.fs.DeleteItemRoot(req.Root, req.Path); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -734,6 +768,7 @@ func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRenameItem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		Root    string `json:"root"`
 		OldPath string `json:"oldPath"`
 		NewPath string `json:"newPath"`
 	}
@@ -748,7 +783,7 @@ func (s *Server) handleRenameItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.fs.RenameItem(req.OldPath, req.NewPath); err != nil {
+	if err := s.fs.RenameItemRoot(req.Root, req.OldPath, req.NewPath); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -760,7 +795,7 @@ func (s *Server) handleRenameItem(w http.ResponseWriter, r *http.Request) {
 			Action:   audit.ActionFileRename,
 			Severity: audit.SeverityInfo,
 			Target:   req.OldPath,
-			Details:  map[string]any{"newPath": req.NewPath},
+			Details:  map[string]any{"root": req.Root, "newPath": req.NewPath},
 		})
 	}
 
@@ -777,6 +812,7 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rootID := r.FormValue("root")
 	dirRel := r.FormValue("path")
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -785,7 +821,7 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	savedPath, err := s.fs.UploadFile(dirRel, header.Filename, file)
+	savedPath, err := s.fs.UploadFileRoot(rootID, dirRel, header.Filename, file)
 	if err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
@@ -798,13 +834,14 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
+	rootID := r.URL.Query().Get("root")
 	relPath := r.URL.Query().Get("path")
 	if relPath == "" {
 		jsonError(w, http.StatusBadRequest, "path parameter is required")
 		return
 	}
 
-	fullPath, err := s.fs.SafePath(relPath)
+	fullPath, _, err := s.fs.SafePathRoot(rootID, relPath)
 	if err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
@@ -817,8 +854,9 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSearchFiles(w http.ResponseWriter, r *http.Request) {
+	rootID := r.URL.Query().Get("root")
 	q := r.URL.Query().Get("q")
-	items, err := s.fs.SearchFiles(q)
+	items, err := s.fs.SearchFilesRoot(rootID, q)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return

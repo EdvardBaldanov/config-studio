@@ -129,9 +129,20 @@ export interface HeaderItemDef {
   render: (container: HTMLElement) => void;
 }
 
+export interface WorkspaceRoot {
+  id: string;
+  name: string;
+  path: string;
+  readOnly: boolean;
+  icon?: string;
+  order?: number;
+}
+
 export interface FileItem {
   name: string;
   path: string;
+  root?: string;
+  fullRelPath?: string;
   isDir: boolean;
   size: number;
   modTime: string;
@@ -141,7 +152,10 @@ export interface FileItem {
 
 export interface FileInfo {
   path: string;
+  root?: string;
+  fullRelPath?: string;
   name: string;
+  readOnly?: boolean;
   size: number;
   lineCount: number;
   charCount: number;
@@ -177,10 +191,13 @@ export interface FileRevision {
 
 export interface OpenFile {
   path: string;
+  root?: string;
+  fullRelPath?: string;
   name: string;
   content: string;
   initialContent: string;
   isDirty: boolean;
+  readOnly?: boolean;
   language: string;
   revisions: FileRevision[];
 }

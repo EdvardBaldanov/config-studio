@@ -12,19 +12,23 @@ import (
 )
 
 type FileItem struct {
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	IsDir     bool      `json:"isDir"`
-	Size      int64     `json:"size"`
-	ModTime   time.Time `json:"modTime"`
-	CreatedAt time.Time `json:"createdAt"`
-	Extension string    `json:"extension"`
+	Name        string    `json:"name"`
+	Path        string    `json:"path"`
+	Root        string    `json:"root,omitempty"`
+	FullRelPath string    `json:"fullRelPath,omitempty"`
+	IsDir       bool      `json:"isDir"`
+	Size        int64     `json:"size"`
+	ModTime     time.Time `json:"modTime"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Extension   string    `json:"extension"`
 }
 
 type Service struct {
-	WorkDir string
+	WorkDir    string
+	Workspaces *WorkspaceManager
 }
 
+// NewService creates a filesystem service with a single default workdir.
 func NewService(workDir string) (*Service, error) {
 	abs, err := filepath.Abs(workDir)
 	if err != nil {
@@ -33,22 +37,60 @@ func NewService(workDir string) (*Service, error) {
 	if err := os.MkdirAll(abs, 0755); err != nil {
 		return nil, err
 	}
-	return &Service{WorkDir: abs}, nil
+	wm := NewInMemoryWorkspaceManager(abs)
+	return &Service{
+		WorkDir:    abs,
+		Workspaces: wm,
+	}, nil
 }
 
-func (s *Service) SafePath(rel string) (string, error) {
-	rel = strings.TrimPrefix(rel, "/")
-	clean := filepath.Clean(filepath.Join(s.WorkDir, rel))
-
-	// Ensure the cleaned path is still inside WorkDir
-	if clean != s.WorkDir && !strings.HasPrefix(clean, s.WorkDir+string(filepath.Separator)) {
-		return "", errors.New("access denied: path is outside working directory")
+// NewServiceWithManager creates a filesystem service backed by a WorkspaceManager.
+func NewServiceWithManager(wm *WorkspaceManager) (*Service, error) {
+	defaultRootID := wm.DefaultRoot()
+	workDir := ""
+	if root, ok := wm.Get(defaultRootID); ok {
+		workDir = root.Path
 	}
-	return clean, nil
+	return &Service{
+		WorkDir:    workDir,
+		Workspaces: wm,
+	}, nil
 }
 
-func (s *Service) ListDir(rel string) ([]FileItem, error) {
-	fullPath, err := s.SafePath(rel)
+// ensureWorkspaces guarantees that Workspaces is non-nil.
+func (s *Service) ensureWorkspaces() *WorkspaceManager {
+	if s.Workspaces == nil {
+		s.Workspaces = NewInMemoryWorkspaceManager(s.WorkDir)
+	}
+	return s.Workspaces
+}
+
+// SafePathRoot resolves and validates a relative path inside a specific workspace root.
+func (s *Service) SafePathRoot(rootID, rel string) (string, WorkspaceRoot, error) {
+	wm := s.ensureWorkspaces()
+	root, cleanRel, err := wm.ResolveRootAndRel(rootID, rel)
+	if err != nil {
+		return "", WorkspaceRoot{}, err
+	}
+
+	clean := filepath.Clean(filepath.Join(root.Path, cleanRel))
+
+	// Ensure the cleaned path is still inside root.Path
+	if clean != root.Path && !strings.HasPrefix(clean, root.Path+string(filepath.Separator)) {
+		return "", root, errors.New("access denied: path is outside working directory")
+	}
+	return clean, root, nil
+}
+
+// SafePath validates a relative path inside the default or compound workspace root.
+func (s *Service) SafePath(rel string) (string, error) {
+	p, _, err := s.SafePathRoot("", rel)
+	return p, err
+}
+
+// ListDirRoot lists directory items within a specific workspace root.
+func (s *Service) ListDirRoot(rootID, rel string) ([]FileItem, error) {
+	fullPath, root, err := s.SafePathRoot(rootID, rel)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +100,7 @@ func (s *Service) ListDir(rel string) ([]FileItem, error) {
 		return nil, err
 	}
 
-	items := make([]FileItem, 0)
+	items := make([]FileItem, 0, len(entries))
 	for _, entry := range entries {
 		info, err := entry.Info()
 		if err != nil {
@@ -66,19 +108,20 @@ func (s *Service) ListDir(rel string) ([]FileItem, error) {
 		}
 
 		itemRel := filepath.Join(rel, entry.Name())
-		// Normalize to forward slashes for web API
 		itemRel = filepath.ToSlash(itemRel)
 
 		modTime, createTime := GetFileTimes(info)
 
 		items = append(items, FileItem{
-			Name:      entry.Name(),
-			Path:      itemRel,
-			IsDir:     entry.IsDir(),
-			Size:      info.Size(),
-			ModTime:   modTime,
-			CreatedAt: createTime,
-			Extension: strings.ToLower(filepath.Ext(entry.Name())),
+			Name:        entry.Name(),
+			Path:        itemRel,
+			Root:        root.ID,
+			FullRelPath: root.ID + ":" + itemRel,
+			IsDir:       entry.IsDir(),
+			Size:        info.Size(),
+			ModTime:     modTime,
+			CreatedAt:   createTime,
+			Extension:   strings.ToLower(filepath.Ext(entry.Name())),
 		})
 	}
 
@@ -92,52 +135,72 @@ func (s *Service) ListDir(rel string) ([]FileItem, error) {
 	return items, nil
 }
 
-func (s *Service) SearchFiles(query string) ([]FileItem, error) {
+// ListDir lists directory items within the default or compound workspace root.
+func (s *Service) ListDir(rel string) ([]FileItem, error) {
+	return s.ListDirRoot("", rel)
+}
+
+// SearchFilesRoot searches files in a specific root, or across all roots if rootID is empty.
+func (s *Service) SearchFilesRoot(rootID, query string) ([]FileItem, error) {
+	wm := s.ensureWorkspaces()
+	var searchRoots []WorkspaceRoot
+
+	if rootID != "" {
+		root, ok := wm.Get(rootID)
+		if !ok {
+			return nil, fmt.Errorf("workspace root '%s' not found", rootID)
+		}
+		searchRoots = []WorkspaceRoot{root}
+	} else {
+		searchRoots = wm.List()
+	}
+
 	items := make([]FileItem, 0)
 	q := strings.ToLower(strings.TrimSpace(query))
 
-	err := filepath.Walk(s.WorkDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if path == s.WorkDir {
-			return nil
-		}
-		// Skip hidden directories (like .git, .cache)
-		if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
-			return filepath.SkipDir
-		}
-
-		rel, err := filepath.Rel(s.WorkDir, path)
-		if err != nil {
-			return nil
-		}
-		rel = filepath.ToSlash(rel)
-
-		nameLower := strings.ToLower(info.Name())
-		relLower := strings.ToLower(rel)
-
-		if q == "" || strings.Contains(nameLower, q) || strings.Contains(relLower, q) {
-			modTime, createTime := GetFileTimes(info)
-			items = append(items, FileItem{
-				Name:      info.Name(),
-				Path:      rel,
-				IsDir:     info.IsDir(),
-				Size:      info.Size(),
-				ModTime:   modTime,
-				CreatedAt: createTime,
-				Extension: strings.ToLower(filepath.Ext(info.Name())),
-			})
-		}
-
+	for _, root := range searchRoots {
 		if len(items) >= 200 {
-			return filepath.SkipDir
+			break
 		}
-		return nil
-	})
 
-	if err != nil {
-		return nil, err
+		_ = filepath.Walk(root.Path, func(path string, info os.FileInfo, err error) error {
+			if err != nil || path == root.Path {
+				return nil
+			}
+			// Skip hidden directories (like .git, .cache)
+			if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+				return filepath.SkipDir
+			}
+
+			rel, err := filepath.Rel(root.Path, path)
+			if err != nil {
+				return nil
+			}
+			rel = filepath.ToSlash(rel)
+
+			nameLower := strings.ToLower(info.Name())
+			relLower := strings.ToLower(rel)
+
+			if q == "" || strings.Contains(nameLower, q) || strings.Contains(relLower, q) {
+				modTime, createTime := GetFileTimes(info)
+				items = append(items, FileItem{
+					Name:        info.Name(),
+					Path:        rel,
+					Root:        root.ID,
+					FullRelPath: root.ID + ":" + rel,
+					IsDir:       info.IsDir(),
+					Size:        info.Size(),
+					ModTime:     modTime,
+					CreatedAt:   createTime,
+					Extension:   strings.ToLower(filepath.Ext(info.Name())),
+				})
+			}
+
+			if len(items) >= 200 {
+				return filepath.SkipDir
+			}
+			return nil
+		})
 	}
 
 	if q != "" {
@@ -184,18 +247,34 @@ func (s *Service) SearchFiles(query string) ([]FileItem, error) {
 	return items, nil
 }
 
-func (s *Service) ReadFile(rel string) ([]byte, error) {
-	fullPath, err := s.SafePath(rel)
+// SearchFiles searches across all roots.
+func (s *Service) SearchFiles(query string) ([]FileItem, error) {
+	return s.SearchFilesRoot("", query)
+}
+
+// ReadFileRoot reads file content from a specific workspace root.
+func (s *Service) ReadFileRoot(rootID, rel string) ([]byte, error) {
+	fullPath, _, err := s.SafePathRoot(rootID, rel)
 	if err != nil {
 		return nil, err
 	}
 	return os.ReadFile(fullPath)
 }
 
-func (s *Service) WriteFile(rel string, content []byte, createBackup bool) error {
-	fullPath, err := s.SafePath(rel)
+// ReadFile reads file content from the default or compound workspace root.
+func (s *Service) ReadFile(rel string) ([]byte, error) {
+	return s.ReadFileRoot("", rel)
+}
+
+// WriteFileRoot writes file content to a specific workspace root with backup support.
+func (s *Service) WriteFileRoot(rootID, rel string, content []byte, createBackup bool) error {
+	fullPath, root, err := s.SafePathRoot(rootID, rel)
 	if err != nil {
 		return err
+	}
+
+	if root.ReadOnly {
+		return fmt.Errorf("workspace root '%s' is read-only", root.Name)
 	}
 
 	// Create parent directories if they don't exist
@@ -213,10 +292,20 @@ func (s *Service) WriteFile(rel string, content []byte, createBackup bool) error
 	return os.WriteFile(fullPath, content, 0644)
 }
 
-func (s *Service) CreateItem(rel string, isDir bool) error {
-	fullPath, err := s.SafePath(rel)
+// WriteFile writes file content to default or compound workspace root.
+func (s *Service) WriteFile(rel string, content []byte, createBackup bool) error {
+	return s.WriteFileRoot("", rel, content, createBackup)
+}
+
+// CreateItemRoot creates a file or folder inside a specific workspace root.
+func (s *Service) CreateItemRoot(rootID, rel string, isDir bool) error {
+	fullPath, root, err := s.SafePathRoot(rootID, rel)
 	if err != nil {
 		return err
+	}
+
+	if root.ReadOnly {
+		return fmt.Errorf("workspace root '%s' is read-only", root.Name)
 	}
 
 	if isDir {
@@ -234,36 +323,70 @@ func (s *Service) CreateItem(rel string, isDir bool) error {
 	return f.Close()
 }
 
-func (s *Service) DeleteItem(rel string) error {
-	fullPath, err := s.SafePath(rel)
+// CreateItem creates a file or folder inside default or compound workspace root.
+func (s *Service) CreateItem(rel string, isDir bool) error {
+	return s.CreateItemRoot("", rel, isDir)
+}
+
+// DeleteItemRoot deletes a file or directory from a specific workspace root.
+func (s *Service) DeleteItemRoot(rootID, rel string) error {
+	fullPath, root, err := s.SafePathRoot(rootID, rel)
 	if err != nil {
 		return err
 	}
-	if fullPath == s.WorkDir {
+
+	if root.ReadOnly {
+		return fmt.Errorf("workspace root '%s' is read-only", root.Name)
+	}
+
+	if fullPath == root.Path {
 		return errors.New("cannot delete root working directory")
 	}
+
 	return os.RemoveAll(fullPath)
 }
 
-func (s *Service) RenameItem(oldRel, newRel string) error {
-	oldPath, err := s.SafePath(oldRel)
+// DeleteItem deletes a file or directory from default or compound workspace root.
+func (s *Service) DeleteItem(rel string) error {
+	return s.DeleteItemRoot("", rel)
+}
+
+// RenameItemRoot renames a file or directory within a workspace root.
+func (s *Service) RenameItemRoot(rootID, oldRel, newRel string) error {
+	oldPath, rootOld, err := s.SafePathRoot(rootID, oldRel)
 	if err != nil {
 		return err
 	}
-	newPath, err := s.SafePath(newRel)
+
+	newPath, rootNew, err := s.SafePathRoot(rootID, newRel)
 	if err != nil {
 		return err
 	}
+
+	if rootOld.ReadOnly || rootNew.ReadOnly {
+		return errors.New("workspace root is read-only")
+	}
+
 	if err := os.MkdirAll(filepath.Dir(newPath), 0755); err != nil {
 		return err
 	}
 	return os.Rename(oldPath, newPath)
 }
 
-func (s *Service) UploadFile(dirRel, filename string, r io.Reader) (string, error) {
-	dirPath, err := s.SafePath(dirRel)
+// RenameItem renames a file or directory in default or compound workspace root.
+func (s *Service) RenameItem(oldRel, newRel string) error {
+	return s.RenameItemRoot("", oldRel, newRel)
+}
+
+// UploadFileRoot uploads a file to a specific directory within a workspace root.
+func (s *Service) UploadFileRoot(rootID, dirRel, filename string, r io.Reader) (string, error) {
+	dirPath, root, err := s.SafePathRoot(rootID, dirRel)
 	if err != nil {
 		return "", err
+	}
+
+	if root.ReadOnly {
+		return "", fmt.Errorf("workspace root '%s' is read-only", root.Name)
 	}
 
 	safeName := filepath.Base(filename)
@@ -283,6 +406,11 @@ func (s *Service) UploadFile(dirRel, filename string, r io.Reader) (string, erro
 	}
 
 	return filepath.ToSlash(filepath.Join(dirRel, safeName)), nil
+}
+
+// UploadFile uploads a file to default or compound workspace root.
+func (s *Service) UploadFile(dirRel, filename string, r io.Reader) (string, error) {
+	return s.UploadFileRoot("", dirRel, filename, r)
 }
 
 func copyFile(src, dst string) error {

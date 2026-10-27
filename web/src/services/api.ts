@@ -17,6 +17,7 @@ import {
   SecretMeta,
   SecretItem,
   SecretsStatus,
+  WorkspaceRoot,
 } from '../types';
 import { telemetry } from './telemetry';
 
@@ -138,9 +139,65 @@ export const api = {
     return res.json();
   },
 
-  async getTree(path: string = ''): Promise<{ path: string; items: FileItem[] }> {
+  // Workspaces API (Multi-Root)
+  async getWorkspaces(): Promise<{ workspaces: WorkspaceRoot[]; defaultRoot: string }> {
+    const res = await webFetch('/api/workspaces');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to list workspaces');
+    }
+    return res.json();
+  },
+
+  async addWorkspace(root: Partial<WorkspaceRoot>): Promise<WorkspaceRoot> {
+    const res = await webFetch('/api/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(root),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to add workspace');
+    }
+    return res.json();
+  },
+
+  async updateWorkspace(id: string, root: Partial<WorkspaceRoot>): Promise<WorkspaceRoot> {
+    const res = await webFetch(`/api/workspaces/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(root),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to update workspace');
+    }
+    return res.json();
+  },
+
+  async deleteWorkspace(id: string): Promise<void> {
+    const res = await webFetch(`/api/workspaces/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete workspace');
+    }
+  },
+
+  async reloadWorkspaces(): Promise<{ workspaces: WorkspaceRoot[]; defaultRoot: string }> {
+    const res = await webFetch('/api/workspaces/reload', { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to reload workspaces');
+    }
+    return res.json();
+  },
+
+  async getTree(path: string = '', root: string = ''): Promise<{ root?: string; path: string; items: FileItem[] }> {
     const params = new URLSearchParams();
     if (path) params.set('path', path);
+    if (root) params.set('root', root);
     const res = await webFetch(`/api/fs/tree?${params}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -148,13 +205,16 @@ export const api = {
     }
     const data = await res.json();
     return {
+      root: data.root || root,
       path: data.path || '',
       items: data.items || [],
     };
   },
 
-  async getFile(path: string): Promise<{ path: string; name: string; content: string }> {
-    const res = await webFetch(`/api/fs/file?path=${encodeURIComponent(path)}`);
+  async getFile(path: string, root: string = ''): Promise<{ root?: string; path: string; fullRelPath?: string; name: string; content: string; readOnly?: boolean }> {
+    const params = new URLSearchParams({ path });
+    if (root) params.set('root', root);
+    const res = await webFetch(`/api/fs/file?${params}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to read file');
@@ -162,8 +222,10 @@ export const api = {
     return res.json();
   },
 
-  async getFileInfo(path: string): Promise<FileInfo> {
-    const res = await webFetch(`/api/fs/info?path=${encodeURIComponent(path)}`);
+  async getFileInfo(path: string, root: string = ''): Promise<FileInfo> {
+    const params = new URLSearchParams({ path });
+    if (root) params.set('root', root);
+    const res = await webFetch(`/api/fs/info?${params}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to get file info');
@@ -171,11 +233,11 @@ export const api = {
     return res.json();
   },
 
-  async saveFile(path: string, content: string, backup: boolean = true, force: boolean = false): Promise<void> {
+  async saveFile(path: string, content: string, backup: boolean = true, force: boolean = false, root: string = ''): Promise<void> {
     const res = await webFetch('/api/fs/file', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, content, backup, force }),
+      body: JSON.stringify({ root, path, content, backup, force }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -198,11 +260,11 @@ export const api = {
     return res.json();
   },
 
-  async createItem(path: string, isDir: boolean): Promise<void> {
+  async createItem(path: string, isDir: boolean, root: string = ''): Promise<void> {
     const res = await webFetch('/api/fs/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, isDir }),
+      body: JSON.stringify({ root, path, isDir }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -210,11 +272,11 @@ export const api = {
     }
   },
 
-  async deleteItem(path: string): Promise<void> {
+  async deleteItem(path: string, root: string = ''): Promise<void> {
     const res = await webFetch('/api/fs/delete', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ root, path }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -222,11 +284,11 @@ export const api = {
     }
   },
 
-  async renameItem(oldPath: string, newPath: string): Promise<void> {
+  async renameItem(oldPath: string, newPath: string, root: string = ''): Promise<void> {
     const res = await webFetch('/api/fs/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ oldPath, newPath }),
+      body: JSON.stringify({ root, oldPath, newPath }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -234,8 +296,9 @@ export const api = {
     }
   },
 
-  async uploadFile(dirPath: string, file: File): Promise<string> {
+  async uploadFile(dirPath: string, file: File, root: string = ''): Promise<string> {
     const formData = new FormData();
+    if (root) formData.append('root', root);
     formData.append('path', dirPath);
     formData.append('file', file);
     const res = await webFetch('/api/fs/upload', {
@@ -250,12 +313,16 @@ export const api = {
     return data.path;
   },
 
-  getDownloadUrl(path: string): string {
-    return `/api/fs/download?path=${encodeURIComponent(path)}`;
+  getDownloadUrl(path: string, root: string = ''): string {
+    const params = new URLSearchParams({ path });
+    if (root) params.set('root', root);
+    return `/api/fs/download?${params}`;
   },
 
-  async searchFiles(query: string = ''): Promise<FileItem[]> {
-    const res = await webFetch(`/api/fs/search?q=${encodeURIComponent(query)}`);
+  async searchFiles(query: string = '', root: string = ''): Promise<FileItem[]> {
+    const params = new URLSearchParams({ q: query });
+    if (root) params.set('root', root);
+    const res = await webFetch(`/api/fs/search?${params}`);
     if (!res.ok) return [];
     const data = await res.json().catch(() => ({}));
     return data.items || [];

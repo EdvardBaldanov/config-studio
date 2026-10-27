@@ -53,8 +53,12 @@ func main() {
 				i++
 			} else if strings.HasPrefix(args[i], "-o=") {
 				destFile = strings.TrimPrefix(args[i], "-o=")
-			} else if !strings.HasPrefix(args[i], "-") && srcDir == "" {
-				srcDir = args[i]
+			} else if !strings.HasPrefix(args[i], "-") {
+				if srcDir == "" {
+					srcDir = args[i]
+				} else if destFile == "" {
+					destFile = args[i]
+				}
 			}
 		}
 

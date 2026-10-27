@@ -8,7 +8,7 @@ interface ActionToolbarProps {
   accentColor?: string;
 }
 
-// Matches filename against glob patterns (e.g. Makefile, *.mk, docker-compose*.yml)
+// Matches filename against glob patterns (e.g. Makefile, *.mk, .html, docker-compose*.yml)
 function matchesPattern(filename: string, pattern: string): boolean {
   const f = filename.toLowerCase();
   const p = pattern.toLowerCase().trim();
@@ -16,6 +16,9 @@ function matchesPattern(filename: string, pattern: string): boolean {
   if (p.startsWith('*.')) {
     const ext = p.slice(1);
     return f.endsWith(ext);
+  }
+  if (p.startsWith('.')) {
+    return f.endsWith(p);
   }
   if (p.includes('*')) {
     const parts = p.split('*');

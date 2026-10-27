@@ -456,7 +456,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Save button (always visible) */}
         <button
-          onClick={onSave}
+          onClick={() => onSave()}
           disabled={!currentFile || isSaving}
           className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-900 transition-all duration-150 shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: settings.accentColor }}

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import MonacoEditor, { OnMount } from '@monaco-editor/react';
-import { OpenFile, Settings, OutlineNode, ToolbarButtonDef, GuardValidationResult } from '../types';
+import { OpenFile, Settings, OutlineNode, ToolbarButtonDef, GuardValidationResult, WorkspaceRoot } from '../types';
 import { X, FileCode, Hash, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { translations } from '../utils/i18n';
 import { getLuminance } from '../utils/color';
@@ -11,6 +11,7 @@ interface EditorProps {
   tabs: OpenFile[];
   activeFilePath: string | null;
   settings: Settings;
+  workspaces?: WorkspaceRoot[];
   outline?: OutlineNode[];
   pluginButtons?: ToolbarButtonDef[];
   onSelectTab: (path: string) => void;
@@ -28,6 +29,7 @@ export const Editor: React.FC<EditorProps> = ({
   tabs,
   activeFilePath,
   settings,
+  workspaces = [],
   outline = [],
   pluginButtons = [],
   guardResult = null,
@@ -80,7 +82,12 @@ export const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  const currentFile = tabs.find((t) => t.path === activeFilePath) || null;
+  const getTabKey = (tab: OpenFile) =>
+    tab.fullRelPath || (tab.root ? `${tab.root}:${tab.path}` : tab.path);
+
+  const currentFile =
+    tabs.find((t) => getTabKey(t) === activeFilePath || t.path === activeFilePath) ||
+    null;
 
   const isLight =
     settings.themeMode === 'light' ||
@@ -260,12 +267,29 @@ export const Editor: React.FC<EditorProps> = ({
       <div className="h-10 bg-base-surface border-b border-base-border flex items-center justify-between px-2 select-none flex-shrink-0">
         <div className="flex items-center space-x-1 overflow-x-auto">
           {tabs.map((tab) => {
-            const isActive = tab.path === activeFilePath;
+            const tabKey = getTabKey(tab);
+            const isActive = tabKey === activeFilePath || tab.path === activeFilePath;
+
+            // If another open tab has the same filename, show location hint
+            const hasDuplicateName = tabs.some(
+              (t) => t !== tab && t.name === tab.name
+            );
+            let locationHint = '';
+            if (hasDuplicateName) {
+              if (tab.root && workspaces && workspaces.length > 1) {
+                const ws = workspaces.find((w) => w.id === tab.root);
+                locationHint = ws ? ws.name : tab.root;
+              } else if (tab.path.includes('/')) {
+                const parts = tab.path.split('/');
+                locationHint = parts[parts.length - 2];
+              }
+            }
+
             return (
               <div
-                key={tab.path}
-                onClick={() => onSelectTab(tab.path)}
-                className={`group flex items-center space-x-2 px-3 py-1.5 rounded-t-lg text-xs font-medium cursor-pointer transition-all border-b-2 max-w-[200px] ${
+                key={tabKey}
+                onClick={() => onSelectTab(tabKey)}
+                className={`group flex items-center space-x-2 px-3 py-1.5 rounded-t-lg text-xs font-medium cursor-pointer transition-all border-b-2 max-w-[220px] ${
                   isActive
                     ? 'bg-base text-gray-900 dark:text-white shadow-sm'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border-transparent'
@@ -275,6 +299,14 @@ export const Editor: React.FC<EditorProps> = ({
                 }}
               >
                 <span className="truncate">{tab.name}</span>
+                {locationHint && (
+                  <span
+                    className="text-[10px] opacity-60 font-mono truncate max-w-[80px] shrink-0"
+                    title={`Расположение: ${tab.root ? tab.root + '/' : ''}${tab.path}`}
+                  >
+                    • {locationHint}
+                  </span>
+                )}
                 {tab.readOnly && (
                   <span
                     className="px-1 text-[9px] font-mono uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded shrink-0"
@@ -293,7 +325,7 @@ export const Editor: React.FC<EditorProps> = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCloseTab(tab.path);
+                    onCloseTab(tabKey);
                   }}
                   className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white flex-shrink-0"
                   title="Закрыть вкладку"

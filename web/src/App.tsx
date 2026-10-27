@@ -54,7 +54,7 @@ export const App: React.FC = () => {
   const [currentDir, setCurrentDir] = useState<string>('');
   const [dirItems, setDirItems] = useState<FileItem[]>([]);
   const [tabs, setTabs] = useState<OpenFile[]>([]);
-  const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
+  const [activeTabKey, setActiveTabKey] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -92,9 +92,12 @@ export const App: React.FC = () => {
   const editorRef = useRef<any>(null);
   const t = translations[settings.language] || translations.ru;
 
+  const getTabKey = (tab: { root?: string; path: string; fullRelPath?: string }) =>
+    tab.fullRelPath || (tab.root ? `${tab.root}:${tab.path}` : tab.path);
+
   const currentFile = useMemo(
-    () => tabs.find((t) => t.path === activeTabPath) || null,
-    [tabs, activeTabPath]
+    () => tabs.find((t) => getTabKey(t) === activeTabKey || t.path === activeTabKey) || null,
+    [tabs, activeTabKey]
   );
 
   const currentFileRef = useRef(currentFile);
@@ -156,7 +159,7 @@ export const App: React.FC = () => {
     if (currentFile) {
       pluginManager.notifyFileOpen(currentFile);
     }
-  }, [currentFile?.path]);
+  }, [currentFile ? getTabKey(currentFile) : null]);
 
   // Sync active language to plugin manager
   useEffect(() => {
@@ -255,17 +258,17 @@ export const App: React.FC = () => {
 
     const targetKey = `${root}:${cleanPath}`;
     const existing = tabs.find(
-      (t) => (t.fullRelPath && t.fullRelPath === targetKey) || t.path === cleanPath
+      (t) => getTabKey(t) === targetKey || (t.root === root && t.path === cleanPath)
     );
     if (existing) {
-      setActiveTabPath(existing.path);
+      setActiveTabKey(getTabKey(existing));
       return;
     }
 
     try {
       const fileData = await api.getFile(cleanPath, root);
       const fullRelPath =
-        fileData.fullRelPath || `${fileData.root || root}:${fileData.path}`;
+        fileData.fullRelPath || targetKey;
 
       const newTab: OpenFile = {
         path: fileData.path,
@@ -280,14 +283,14 @@ export const App: React.FC = () => {
         revisions: [],
       };
       setTabs((prev) => [...prev, newTab]);
-      setActiveTabPath(fileData.path);
+      setActiveTabKey(fullRelPath);
     } catch (err: any) {
       alert(`Error reading file: ${err.message}`);
     }
   };
 
-  const handleCloseTab = (filePath: string) => {
-    const tabToClose = tabs.find((t) => t.path === filePath);
+  const handleCloseTab = (tabKey: string) => {
+    const tabToClose = tabs.find((t) => getTabKey(t) === tabKey || t.path === tabKey);
     if (tabToClose?.isDirty) {
       const msg = t.unsavedWarning.replace('{name}', tabToClose.name);
       if (!confirm(msg)) {
@@ -295,10 +298,18 @@ export const App: React.FC = () => {
       }
     }
 
-    const nextTabs = tabs.filter((t) => t.path !== filePath);
+    const keyToClose = tabToClose ? getTabKey(tabToClose) : tabKey;
+    const idx = tabs.findIndex((t) => getTabKey(t) === keyToClose);
+    const nextTabs = tabs.filter((t) => getTabKey(t) !== keyToClose);
     setTabs(nextTabs);
-    if (activeTabPath === filePath) {
-      setActiveTabPath(nextTabs.length > 0 ? nextTabs[nextTabs.length - 1].path : null);
+
+    if (activeTabKey === keyToClose || (tabToClose && activeTabKey === tabToClose.path)) {
+      if (nextTabs.length === 0) {
+        setActiveTabKey(null);
+      } else {
+        const nextIdx = Math.min(Math.max(0, idx - 1), nextTabs.length - 1);
+        setActiveTabKey(getTabKey(nextTabs[nextIdx]));
+      }
     }
   };
 
@@ -382,9 +393,10 @@ export const App: React.FC = () => {
 
   const handleContentChange = (newContent: string) => {
     if (!currentFile) return;
+    const activeKey = getTabKey(currentFile);
     setTabs((prev) =>
       prev.map((tab) =>
-        tab.path === currentFile.path
+        getTabKey(tab) === activeKey
           ? {
               ...tab,
               content: newContent,
@@ -410,10 +422,11 @@ export const App: React.FC = () => {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [currentFile?.path, currentFile?.content]);
+  }, [currentFile ? getTabKey(currentFile) : null, currentFile?.content]);
 
-  const handleSaveFile = async (force: boolean = false) => {
+  const handleSaveFile = async (forceParam?: any) => {
     if (!currentFile) return;
+    const force = forceParam === true;
     setIsSaving(true);
     try {
       await api.saveFile(
@@ -435,9 +448,10 @@ export const App: React.FC = () => {
         linesDelta: currentLines - initialLines,
       };
 
+      const activeKey = getTabKey(currentFile);
       setTabs((prev) =>
         prev.map((tab) =>
-          tab.path === currentFile.path
+          getTabKey(tab) === activeKey
             ? {
                 ...tab,
                 initialContent: currentFile.content,
@@ -524,10 +538,13 @@ export const App: React.FC = () => {
     const root = rootId || workspaces[0]?.id || 'default';
     try {
       await api.deleteItem(path, root);
-      setTabs((prev) => prev.filter((t) => t.path !== path || (root && t.root !== root)));
-      if (activeTabPath === path) {
-        const remaining = tabs.filter((t) => t.path !== path);
-        setActiveTabPath(remaining.length > 0 ? remaining[0].path : null);
+      const targetKey = `${root}:${path}`;
+      const remaining = tabs.filter(
+        (t) => !(getTabKey(t) === targetKey || (t.path === path && t.root === root))
+      );
+      setTabs(remaining);
+      if (currentFile && (getTabKey(currentFile) === targetKey || (currentFile.path === path && currentFile.root === root))) {
+        setActiveTabKey(remaining.length > 0 ? getTabKey(remaining[0]) : null);
       }
       const dirToRefresh = itemsByRoot[root]?.currentDir || '';
       await loadDir(dirToRefresh, root);
@@ -540,15 +557,22 @@ export const App: React.FC = () => {
     const root = rootId || workspaces[0]?.id || 'default';
     try {
       await api.renameItem(oldPath, newPath, root);
+      const oldKey = `${root}:${oldPath}`;
+      const newKey = `${root}:${newPath}`;
       setTabs((prev) =>
         prev.map((t) =>
-          t.path === oldPath && (!root || t.root === root)
-            ? { ...t, path: newPath, name: newPath.split('/').pop() || newPath }
+          getTabKey(t) === oldKey || (t.path === oldPath && (!root || t.root === root))
+            ? {
+                ...t,
+                path: newPath,
+                fullRelPath: newKey,
+                name: newPath.split('/').pop() || newPath,
+              }
             : t
         )
       );
-      if (activeTabPath === oldPath) {
-        setActiveTabPath(newPath);
+      if (currentFile && (getTabKey(currentFile) === oldKey || currentFile.path === oldPath)) {
+        setActiveTabKey(newKey);
       }
       const dirToRefresh = itemsByRoot[root]?.currentDir || '';
       await loadDir(dirToRefresh, root);
@@ -584,6 +608,14 @@ export const App: React.FC = () => {
     try {
       await api.deleteWorkspace(rootId);
       showGlobalToast('Рабочая папка отмонтирована', 'info');
+      // Close tabs belonging to this unmounted root
+      setTabs((prev) => {
+        const remaining = prev.filter((t) => t.root !== rootId);
+        if (currentFile && currentFile.root === rootId) {
+          setActiveTabKey(remaining.length > 0 ? getTabKey(remaining[0]) : null);
+        }
+        return remaining;
+      });
       await loadWorkspaces();
     } catch (err: any) {
       alert(`Ошибка удаления рабочей области: ${err.message}`);
@@ -641,7 +673,7 @@ export const App: React.FC = () => {
         isSaving={isSaving}
         pluginHeaderItems={pluginState.headerItems}
         activePluginsCount={pluginState.plugins.filter((p) => p.enabled).length}
-        onSave={handleSaveFile}
+        onSave={() => handleSaveFile(false)}
         onDownload={handleDownload}
         onOpenSettings={() => {
           setSettingsTab('general');
@@ -668,7 +700,7 @@ export const App: React.FC = () => {
         <FileExplorer
           items={dirItems}
           currentDir={currentDir}
-          selectedFilePath={currentFile?.fullRelPath || currentFile?.path || null}
+          selectedFilePath={currentFile ? getTabKey(currentFile) : null}
           settings={settings}
           workspaces={workspaces}
           itemsByRoot={itemsByRoot}
@@ -702,8 +734,9 @@ export const App: React.FC = () => {
         <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
           <Editor
             tabs={tabs}
-            activeFilePath={activeTabPath}
+            activeFilePath={activeTabKey}
             settings={settings}
+            workspaces={workspaces}
             outline={outline}
             pluginButtons={pluginState.toolbarButtons}
             guardResult={guardResult}
@@ -713,10 +746,10 @@ export const App: React.FC = () => {
               }
               setIsPreSaveGuardOpen(true);
             }}
-            onSelectTab={setActiveTabPath}
+            onSelectTab={setActiveTabKey}
             onCloseTab={handleCloseTab}
             onChangeContent={handleContentChange}
-            onSave={handleSaveFile}
+            onSave={() => handleSaveFile(false)}
             onSelectLine={handleJumpToLine}
             onCursorChange={(line, col) => setCursorPos({ line, col })}
             editorRef={editorRef}

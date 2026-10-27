@@ -237,7 +237,13 @@ export const api = {
     const res = await webFetch('/api/fs/file', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ root, path, content, backup, force }),
+      body: JSON.stringify({
+        root: typeof root === 'string' ? root : '',
+        path: String(path || ''),
+        content: String(content || ''),
+        backup: backup !== false,
+        force: force === true,
+      }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

@@ -39,6 +39,7 @@ interface FileExplorerProps {
   selectedFilePath: string | null;
   settings: Settings;
   workspaces?: WorkspaceRoot[];
+  activeRootId?: string;
   itemsByRoot?: Record<string, { currentDir: string; items: FileItem[]; loading?: boolean }>;
   onSelectFile: (path: string, root?: string) => void;
   onNavigateDir: (path: string, root?: string) => void;
@@ -60,6 +61,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   selectedFilePath,
   settings,
   workspaces = [],
+  activeRootId,
   itemsByRoot = {},
   onSelectFile,
   onNavigateDir,
@@ -83,9 +85,28 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   } | null>(null);
   const [, setRegistryTick] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedRootId, setSelectedRootId] = useState<string>(activeRootId || workspaces[0]?.id || 'default');
   const [uploadTargetRoot, setUploadTargetRoot] = useState<string>('');
+  const [uploadTargetDir, setUploadTargetDir] = useState<string>('');
+  const [dragOverRootId, setDragOverRootId] = useState<string | null>(null);
 
   const t = translations[settings.language] || translations.ru;
+
+  useEffect(() => {
+    if (activeRootId) {
+      setSelectedRootId(activeRootId);
+    }
+  }, [activeRootId]);
+
+  const triggerUpload = (rootId: string, dirPath?: string) => {
+    setUploadTargetRoot(rootId);
+    setUploadTargetDir(dirPath !== undefined ? dirPath : (itemsByRoot[rootId]?.currentDir || ''));
+    setSelectedRootId(rootId);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
 
   useEffect(() => {
     return contextMenuRegistry.subscribe(() => {
@@ -148,6 +169,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         order: 20,
         onClick: () => handleCreatePrompt(true, rootId),
       });
+
+      if (!root?.readOnly) {
+        coreItems.push({
+          id: 'core.root.upload',
+          label: t.uploadFileHere || 'Загрузить файлы сюда...',
+          icon: 'UploadCloud',
+          group: 'edit',
+          order: 25,
+          onClick: () => triggerUpload(rootId, itemsByRoot[rootId]?.currentDir || ''),
+        });
+      }
 
       coreItems.push({
         id: 'core.root.refresh',
@@ -264,6 +296,18 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             }
           },
         });
+
+        const wsObj = workspaces.find((w) => w.id === itemRoot);
+        if (!wsObj?.readOnly) {
+          coreItems.push({
+            id: 'core.folder.upload',
+            label: t.uploadFileHere || 'Загрузить файлы сюда...',
+            icon: 'UploadCloud',
+            group: 'edit',
+            order: 25,
+            onClick: () => triggerUpload(itemRoot, target.path),
+          });
+        }
       }
 
       // 4. Group 'edit' (Rename & Delete)
@@ -306,11 +350,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     return [...coreItems, ...pluginItems];
   };
 
-  const handleDrop = (e: React.DragEvent, rootId?: string) => {
+  const handleDrop = (e: React.DragEvent, rootId?: string, dirPath?: string) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
-    const targetRoot = rootId || workspaces[0]?.id || '';
-    const dir = itemsByRoot[targetRoot]?.currentDir || currentDir || '';
+    setDragOverRootId(null);
+    const targetRoot = rootId || selectedRootId || activeRootId || workspaces[0]?.id || 'default';
+    const dir = dirPath !== undefined
+      ? dirPath
+      : (itemsByRoot[targetRoot]?.currentDir || '');
+    setSelectedRootId(targetRoot);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
         onUploadFile(dir, e.dataTransfer.files[i], targetRoot);
@@ -320,11 +369,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const targetRoot = uploadTargetRoot || workspaces[0]?.id || '';
-      const dir = itemsByRoot[targetRoot]?.currentDir || currentDir || '';
+      const targetRoot = uploadTargetRoot || selectedRootId || activeRootId || workspaces[0]?.id || 'default';
+      const dir = uploadTargetDir !== undefined
+        ? uploadTargetDir
+        : (itemsByRoot[targetRoot]?.currentDir || '');
       for (let i = 0; i < e.target.files.length; i++) {
         onUploadFile(dir, e.target.files[i], targetRoot);
       }
+      setUploadTargetRoot('');
+      setUploadTargetDir('');
     }
   };
 
@@ -333,7 +386,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     const name = prompt(promptMsg);
     if (!name || !name.trim()) return;
 
-    const targetRoot = rootId || workspaces[0]?.id || '';
+    const targetRoot = rootId || selectedRootId || activeRootId || workspaces[0]?.id || 'default';
     const dir = itemsByRoot[targetRoot]?.currentDir || currentDir || '';
     const fullPath = dir ? `${dir}/${name.trim()}` : name.trim();
     onCreateItem(fullPath, isDir, targetRoot);
@@ -417,6 +470,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               <div
                 key={itemKey}
                 onClick={() => {
+                  setSelectedRootId(ws.id);
                   if (item.isDir) {
                     onNavigateDir(item.path, ws.id);
                   } else {
@@ -424,6 +478,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     onCloseMobileDrawer?.();
                   }
                 }}
+                onDragOver={item.isDir && !ws.readOnly ? (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                } : undefined}
+                onDrop={item.isDir && !ws.readOnly ? (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDrop(e, ws.id, item.path);
+                } : undefined}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -537,13 +600,33 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             const isCollapsed = collapsedRoots[ws.id] || false;
 
             return (
-              <div key={ws.id} className="space-y-0.5">
+              <div
+                key={ws.id}
+                className={`space-y-0.5 rounded-xl transition-all ${
+                  dragOverRootId === ws.id ? 'ring-2 ring-accent/60 bg-accent/5' : ''
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverRootId(ws.id);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverRootId(null);
+                }}
+                onDrop={(e) => handleDrop(e, ws.id, itemsByRoot[ws.id]?.currentDir || '')}
+              >
                 {/* Root Folder Header */}
                 <div
-                  onClick={(e) => toggleRootCollapse(ws.id, e)}
+                  onClick={() => {
+                    setSelectedRootId(ws.id);
+                  }}
+                  onDoubleClick={(e) => toggleRootCollapse(ws.id, e)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    setSelectedRootId(ws.id);
                     setContextMenuState({
                       x: e.clientX,
                       y: e.clientY,
@@ -557,7 +640,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       } as any,
                     });
                   }}
-                  className="group flex items-center justify-between px-2 py-1.5 rounded-xl text-xs font-semibold text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                  className={`group flex items-center justify-between px-2 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                    selectedRootId === ws.id
+                      ? 'bg-accent/15 text-gray-900 dark:text-white font-bold border border-accent/30 shadow-xs'
+                      : 'text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
+                  }`}
                   title={`${ws.name} (${ws.path})`}
                 >
                   <div className="flex items-center space-x-1.5 truncate min-w-0">
@@ -583,20 +670,34 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   {/* Quick action buttons on root header hover */}
                   <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-0.5 shrink-0 transition-opacity">
                     {!ws.readOnly && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCreatePrompt(false, ws.id);
-                        }}
-                        className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        title={t.newFile || 'Новый файл'}
-                      >
-                        <FilePlus className="w-3 h-3" />
-                      </button>
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRootId(ws.id);
+                            handleCreatePrompt(false, ws.id);
+                          }}
+                          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                          title={t.newFile || 'Новый файл'}
+                        >
+                          <FilePlus className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerUpload(ws.id, itemsByRoot[ws.id]?.currentDir || '');
+                          }}
+                          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/20 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                          title={t.uploadFile || 'Загрузить файл'}
+                        >
+                          <UploadCloud className="w-3 h-3" />
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setSelectedRootId(ws.id);
                         setContextMenuState({
                           x: e.clientX,
                           y: e.clientY,
@@ -655,31 +756,40 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           multiple
           className="hidden"
         />
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => handleDrop(e)}
-          onClick={() => {
-            setUploadTargetRoot(workspaces[0]?.id || 'default');
-            fileInputRef.current?.click();
-          }}
-          className={`border-2 border-dashed rounded-2xl p-3 text-center cursor-pointer transition-all duration-200 ${
-            isDragging
-              ? 'border-accent bg-accent/10'
-              : 'border-gray-300 dark:border-white/10 hover:border-accent/60 bg-gray-50 dark:bg-black/20 hover:bg-gray-100 dark:hover:bg-black/30'
-          }`}
-        >
-          <UploadCloud className="w-5 h-5 mx-auto mb-1 text-accent opacity-90" />
-          <p className="text-[11px] text-gray-700 dark:text-gray-300 font-medium">
-            {t.dropFiles}
-          </p>
-          <p className="text-[10px] text-accent mt-0.5 hover:underline font-semibold">
-            {t.clickToUpload}
-          </p>
-        </div>
+        {(() => {
+          const targetRoot = selectedRootId || activeRootId || workspaces[0]?.id || 'default';
+          const activeWs = workspaces.find((w) => w.id === targetRoot) || workspaces[0];
+          const targetDir = itemsByRoot[targetRoot]?.currentDir || '';
+
+          return (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => handleDrop(e, targetRoot, targetDir)}
+              onClick={() => triggerUpload(targetRoot, targetDir)}
+              className={`border-2 border-dashed rounded-2xl p-3 text-center cursor-pointer transition-all duration-200 ${
+                isDragging
+                  ? 'border-accent bg-accent/10'
+                  : 'border-gray-300 dark:border-white/10 hover:border-accent/60 bg-gray-50 dark:bg-black/20 hover:bg-gray-100 dark:hover:bg-black/30'
+              }`}
+            >
+              <UploadCloud className="w-5 h-5 mx-auto mb-1 text-accent opacity-90" />
+              <p className="text-[11px] text-gray-700 dark:text-gray-300 font-medium">
+                {t.dropFiles}
+              </p>
+              <p className="text-[10px] text-accent mt-0.5 hover:underline font-semibold">
+                {t.clickToUpload}
+              </p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 font-mono truncate">
+                {t.uploadTo || 'Загрузка в'}: <span className="text-accent font-semibold">{activeWs?.name || targetRoot}</span>
+                {targetDir ? ` / ${targetDir}` : ''}
+              </p>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Context Menu Modal / Popup */}

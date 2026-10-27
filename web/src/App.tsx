@@ -703,6 +703,7 @@ export const App: React.FC = () => {
           selectedFilePath={currentFile ? getTabKey(currentFile) : null}
           settings={settings}
           workspaces={workspaces}
+          activeRootId={currentFile?.root || undefined}
           itemsByRoot={itemsByRoot}
           onSelectFile={openFile}
           onNavigateDir={loadDir}

@@ -163,6 +163,12 @@ func (m *Manager) GetAllPluginSettings() map[string]map[string]any {
 
 // enrichManifestLocales populates and merges locales and language packs from the plugin directory.
 func enrichManifestLocales(manifest *Manifest, pluginDir string) {
+	if len(manifest.Permissions) == 0 && len(manifest.Capabilities) > 0 {
+		manifest.Permissions = manifest.Capabilities
+	}
+	if manifest.CSS == "" && len(manifest.Styles) > 0 {
+		manifest.CSS = manifest.Styles[0]
+	}
 	if manifest.Locales == nil {
 		manifest.Locales = make(map[string]map[string]string)
 	}
@@ -345,6 +351,12 @@ func (m *Manager) loadPluginFromCSPKG(pkgPath string) (*Plugin, error) {
 }
 
 func enrichManifestLocalesFromCSPKG(manifest *Manifest, pkgPath string) {
+	if len(manifest.Permissions) == 0 && len(manifest.Capabilities) > 0 {
+		manifest.Permissions = manifest.Capabilities
+	}
+	if manifest.CSS == "" && len(manifest.Styles) > 0 {
+		manifest.CSS = manifest.Styles[0]
+	}
 	zr, err := cspkg.OpenZipReader(pkgPath)
 	if err != nil {
 		return

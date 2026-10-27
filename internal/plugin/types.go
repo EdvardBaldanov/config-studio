@@ -24,6 +24,8 @@ type Manifest struct {
 	Icon          string                       `json:"icon,omitempty"`          // Lucide icon name or svg
 	Entry         string                       `json:"entry"`                   // e.g. "main.js"
 	CSS              string                       `json:"css,omitempty"`              // optional "style.css"
+	Styles           []string                     `json:"styles,omitempty"`           // optional list of stylesheets
+	Capabilities     []string                     `json:"capabilities,omitempty"`     // alias for permissions
 	Permissions      []string                     `json:"permissions,omitempty"`      // e.g. ["ui.panels", "terminal.exec", "network.bind", "service:ssh"]
 	FileMatches      []string                     `json:"fileMatches,omitempty"`      // e.g. [".html", ".php", ".js"]
 	MinAppVersion        string                       `json:"minAppVersion,omitempty"`

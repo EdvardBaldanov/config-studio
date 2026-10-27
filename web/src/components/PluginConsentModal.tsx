@@ -63,6 +63,7 @@ function getPermissionMeta(perm: string, lang: string = 'ru'): PermMeta {
         icon: <ShieldAlert size={16} className="text-rose-500" />,
       };
     case 'fs.read':
+    case 'fs:read':
       return {
         label: isEn ? 'Read project files' : 'Чтение файлов проекта',
         desc: isEn
@@ -73,6 +74,7 @@ function getPermissionMeta(perm: string, lang: string = 'ru'): PermMeta {
         icon: <FileText size={16} className="text-blue-400" />,
       };
     case 'fs.write':
+    case 'fs:write':
       return {
         label: isEn ? 'Write & modify files' : 'Запись и изменение файлов',
         desc: isEn
@@ -84,6 +86,7 @@ function getPermissionMeta(perm: string, lang: string = 'ru'): PermMeta {
       };
     case 'shell.exec':
     case 'terminal.exec':
+    case 'process:exec':
       return {
         label: isEn ? 'Execute host terminal commands' : 'Выполнение консольных команд на хосте',
         desc: isEn
@@ -105,6 +108,8 @@ function getPermissionMeta(perm: string, lang: string = 'ru'): PermMeta {
       };
     case 'network':
     case 'network.bind':
+    case 'network:listen':
+    case 'network:fetch':
       return {
         label: isEn ? 'Network access & local servers' : 'Сетевой доступ и локальные серверы',
         desc: isEn
@@ -136,6 +141,7 @@ function getPermissionMeta(perm: string, lang: string = 'ru'): PermMeta {
         icon: <Layers size={16} className="text-emerald-400" />,
       };
     case 'toolbar':
+    case 'ui:toolbar-button':
       return {
         label: isEn ? 'Action toolbar integration' : 'Интеграция в панель действий (Toolbar)',
         desc: isEn
@@ -213,7 +219,7 @@ export const PluginConsentModal: React.FC<PluginConsentModalProps> = ({
   if (!isOpen || !pending) return null;
 
   const isEn = language === 'en';
-  const permissions = pending.manifest.permissions || [];
+  const permissions = pending.manifest.permissions || (pending.manifest as any).capabilities || [];
   const metas = permissions.map((p) => getPermissionMeta(p, language));
   const hasCritical = metas.some((m) => m?.risk === 'critical');
   const hasUnknown = metas.some((m) => m?.isUnknown);

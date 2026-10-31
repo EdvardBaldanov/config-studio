@@ -55,8 +55,8 @@ export function getRemoteEndpoint() {
 
 function shouldRouteToRemote(url: string): boolean {
   if (!remoteEndpoint) return false;
-  // ONLY File System operations and Workspace tree browsing routes should go to the remote agent
-  return url.startsWith('/api/fs/') || url.startsWith('/api/workspaces');
+  // ONLY File System operations (files, trees, content) are proxied to the remote agent
+  return url.startsWith('/api/fs/');
 }
 
 async function webFetch(url: string, options: RequestInit = {}): Promise<Response> {
@@ -64,14 +64,16 @@ async function webFetch(url: string, options: RequestInit = {}): Promise<Respons
   headers.set('X-ConfigStudio-Web', '1');
   headers.set('X-Nonce', `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
 
-  const isRemote = shouldRouteToRemote(url);
-  if (isRemote && remoteToken) {
-    headers.set('Authorization', `Bearer ${remoteToken}`);
-    headers.set('X-API-Key', remoteToken);
+  let finalUrl = url;
+  if (shouldRouteToRemote(url) && remoteEndpoint) {
+    headers.set('X-Remote-Target', remoteEndpoint);
+    if (remoteToken) {
+      headers.set('Authorization', `Bearer ${remoteToken}`);
+    }
+    // Route through backend proxy to eliminate browser Mixed Content (HTTPS -> HTTP) and CORS errors
+    finalUrl = `/api/remote-proxy${url}`;
   }
 
-  const baseUrl = isRemote && remoteEndpoint ? remoteEndpoint.replace(/\/$/, '') : '';
-  const finalUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
   try {
     const res = await fetch(finalUrl, {
       ...options,

@@ -3,8 +3,10 @@ package server
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -152,6 +154,9 @@ func (s *Server) setupRoutes() {
 	mux.HandleFunc("POST /api/secrets/get", s.handleGetSecret)
 	mux.HandleFunc("POST /api/secrets/save", s.handleSaveSecret)
 	mux.HandleFunc("DELETE /api/secrets/{id}", s.handleDeleteSecret)
+
+	// Remote Agent Proxy (bypasses browser mixed-content and CORS restrictions)
+	mux.HandleFunc("/api/remote-proxy/{path...}", s.handleRemoteProxy)
 
 	// Health check
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -958,5 +963,67 @@ func (s *Server) handleExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.Header().Set("Content-Disposition", "attachment; filename=\"config-studio-audit.jsonl\"")
 	_ = s.audit.Export(w)
+}
+
+// handleRemoteProxy forwards requests from the browser to remote agents.
+// This completely avoids Mixed Content errors (HTTPS -> HTTP) and CORS restrictions.
+func (s *Server) handleRemoteProxy(w http.ResponseWriter, r *http.Request) {
+	targetBase := r.Header.Get("X-Remote-Target")
+	if targetBase == "" {
+		targetBase = r.URL.Query().Get("target")
+	}
+	if targetBase == "" {
+		jsonError(w, http.StatusBadRequest, "X-Remote-Target header is required")
+		return
+	}
+
+	targetBase = strings.TrimRight(targetBase, "/")
+	path := r.PathValue("path")
+	targetURL := fmt.Sprintf("%s/%s", targetBase, strings.TrimLeft(path, "/"))
+	if r.URL.RawQuery != "" {
+		q := r.URL.Query()
+		q.Del("target")
+		if len(q) > 0 {
+			targetURL += "?" + q.Encode()
+		}
+	}
+
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "failed to create proxy request: "+err.Error())
+		return
+	}
+
+	// Forward headers (except Host and X-Remote-Target)
+	for k, vv := range r.Header {
+		if strings.EqualFold(k, "X-Remote-Target") || strings.EqualFold(k, "Host") {
+			continue
+		}
+		for _, v := range vv {
+			proxyReq.Header.Add(k, v)
+		}
+	}
+
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		jsonError(w, http.StatusBadGateway, "failed to reach remote agent: "+err.Error())
+		return
+	}
+	defer resp.Body.Close()
+
+	for k, vv := range resp.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 }
 

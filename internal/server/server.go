@@ -977,6 +977,10 @@ func (s *Server) handleRemoteProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	targetBase = strings.TrimSpace(targetBase)
+	if !strings.HasPrefix(targetBase, "http://") && !strings.HasPrefix(targetBase, "https://") {
+		targetBase = "http://" + targetBase
+	}
 	targetBase = strings.TrimRight(targetBase, "/")
 	path := r.PathValue("path")
 	targetURL := fmt.Sprintf("%s/%s", targetBase, strings.TrimLeft(path, "/"))

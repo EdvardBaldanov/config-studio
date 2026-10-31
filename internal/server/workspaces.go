@@ -8,8 +8,13 @@ import (
 	appfs "config-studio/internal/fs"
 )
 
-// handleListWorkspaces returns all configured workspace roots.
+// handleListWorkspaces returns all configured workspace roots filtered by server target.
 func (s *Server) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
+	serverTarget := r.URL.Query().Get("server")
+	if serverTarget == "" {
+		serverTarget = r.Header.Get("X-Remote-Target")
+	}
+
 	if s.fs == nil || s.fs.Workspaces == nil {
 		workDir := ""
 		if s.fs != nil {
@@ -24,6 +29,7 @@ func (s *Server) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 					ReadOnly: false,
 					Icon:     "folder",
 					Order:    1,
+					Server:   "local",
 				},
 			},
 			"defaultRoot": "default",
@@ -31,8 +37,11 @@ func (s *Server) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roots := s.fs.Workspaces.List()
-	defaultRoot := s.fs.Workspaces.DefaultRoot()
+	roots := s.fs.Workspaces.ListForServer(serverTarget)
+	defaultRoot := ""
+	if len(roots) > 0 {
+		defaultRoot = roots[0].ID
+	}
 
 	jsonResponse(w, http.StatusOK, map[string]any{
 		"workspaces":  roots,
@@ -51,6 +60,14 @@ func (s *Server) handleAddWorkspace(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&root); err != nil {
 		jsonError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
+	}
+
+	serverTarget := r.URL.Query().Get("server")
+	if serverTarget == "" {
+		serverTarget = r.Header.Get("X-Remote-Target")
+	}
+	if strings.TrimSpace(root.Server) == "" {
+		root.Server = serverTarget
 	}
 
 	root.ID = strings.TrimSpace(root.ID)

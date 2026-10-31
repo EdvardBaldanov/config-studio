@@ -24,6 +24,7 @@ type WorkspaceRoot struct {
 	ReadOnly bool   `json:"readOnly" yaml:"read_only"`
 	Icon     string `json:"icon,omitempty" yaml:"icon,omitempty"`
 	Order    int    `json:"order,omitempty" yaml:"order,omitempty"`
+	Server   string `json:"server,omitempty" yaml:"server,omitempty"` // "local", or remote server URL/ID
 }
 
 // WorkspaceConfigFile represents the root YAML schema of workspaces.yaml.
@@ -182,9 +183,13 @@ func (wm *WorkspaceManager) loadLocked() error {
 			}
 		}
 
-		absPath, err := filepath.Abs(w.Path)
-		if err == nil {
-			w.Path = absPath
+		if w.Server == "" || w.Server == "local" {
+			absPath, err := filepath.Abs(w.Path)
+			if err == nil {
+				w.Path = absPath
+			}
+		} else {
+			w.Path = filepath.ToSlash(strings.TrimSpace(w.Path))
 		}
 
 		if w.Icon == "" {
@@ -251,6 +256,60 @@ func (wm *WorkspaceManager) saveLocked() error {
 	return nil
 }
 
+// ListForServer returns workspace roots isolated for a specific server (or local host).
+func (wm *WorkspaceManager) ListForServer(server string) []WorkspaceRoot {
+	wm.checkReload()
+
+	wm.mu.RLock()
+	defer wm.mu.RUnlock()
+
+	server = strings.TrimSpace(server)
+	isLocal := server == "" || server == "local"
+
+	var filtered []WorkspaceRoot
+	for _, r := range wm.roots {
+		rootServer := strings.TrimSpace(r.Server)
+		rootIsLocal := rootServer == "" || rootServer == "local"
+		if isLocal && rootIsLocal {
+			filtered = append(filtered, r)
+		} else if !isLocal && strings.EqualFold(rootServer, server) {
+			filtered = append(filtered, r)
+		}
+	}
+
+	// Default fallback if no workspaces are configured for this target
+	if isLocal && len(filtered) == 0 {
+		filtered = append(filtered, WorkspaceRoot{
+			ID:       "default",
+			Name:     "Configs",
+			Path:     wm.defaultWorkDir,
+			ReadOnly: false,
+			Icon:     "folder",
+			Server:   "local",
+			Order:    1,
+		})
+	} else if !isLocal && len(filtered) == 0 {
+		filtered = append(filtered, WorkspaceRoot{
+			ID:       "root",
+			Name:     "Root (/)",
+			Path:     "/",
+			ReadOnly: false,
+			Icon:     "server",
+			Server:   server,
+			Order:    1,
+		})
+	}
+
+	sort.Slice(filtered, func(i, j int) bool {
+		if filtered[i].Order != filtered[j].Order {
+			return filtered[i].Order < filtered[j].Order
+		}
+		return strings.ToLower(filtered[i].Name) < strings.ToLower(filtered[j].Name)
+	})
+
+	return filtered
+}
+
 // List returns a sorted slice of workspace roots.
 func (wm *WorkspaceManager) List() []WorkspaceRoot {
 	wm.checkReload()
@@ -311,14 +370,19 @@ func (wm *WorkspaceManager) Add(root WorkspaceRoot) error {
 		return errors.New("workspace id must consist of 1-64 alphanumeric characters, underscores or hyphens")
 	}
 
-	absPath, err := filepath.Abs(strings.TrimSpace(root.Path))
-	if err != nil {
-		return fmt.Errorf("invalid path: %w", err)
+	root.Server = strings.TrimSpace(root.Server)
+	if root.Server == "" || root.Server == "local" {
+		absPath, err := filepath.Abs(strings.TrimSpace(root.Path))
+		if err != nil {
+			return fmt.Errorf("invalid path: %w", err)
+		}
+		if err := os.MkdirAll(absPath, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+		root.Path = absPath
+	} else {
+		root.Path = filepath.ToSlash(strings.TrimSpace(root.Path))
 	}
-	if err := os.MkdirAll(absPath, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-	root.Path = absPath
 
 	if strings.TrimSpace(root.Name) == "" {
 		root.Name = filepath.Base(root.Path)

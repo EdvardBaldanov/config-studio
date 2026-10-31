@@ -151,9 +151,10 @@ export const api = {
     return res.json();
   },
 
-  // Workspaces API (Multi-Root)
+  // Workspaces API (Multi-Root, isolated per server)
   async getWorkspaces(): Promise<{ workspaces: WorkspaceRoot[]; defaultRoot: string }> {
-    const res = await webFetch('/api/workspaces');
+    const srv = remoteEndpoint ? `?server=${encodeURIComponent(remoteEndpoint)}` : '?server=local';
+    const res = await webFetch(`/api/workspaces${srv}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to list workspaces');
@@ -162,10 +163,15 @@ export const api = {
   },
 
   async addWorkspace(root: Partial<WorkspaceRoot>): Promise<WorkspaceRoot> {
-    const res = await webFetch('/api/workspaces', {
+    const srv = remoteEndpoint ? `?server=${encodeURIComponent(remoteEndpoint)}` : '?server=local';
+    const payload = {
+      ...root,
+      server: remoteEndpoint || 'local',
+    };
+    const res = await webFetch(`/api/workspaces${srv}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(root),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

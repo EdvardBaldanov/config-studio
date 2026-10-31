@@ -21,12 +21,16 @@ Write-Host "==========================================================" -Foregro
 Write-Host "  Config Studio Multi-Edition Compilation & Packager      " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-# 1. Build Standalone cspkg CLI Packager
-Write-Host "`n[1/4] Building Standalone cspkg CLI Packager..." -ForegroundColor Yellow
+# 1. Build Standalone cspkg CLI Packager and Remote Agent Daemon
+Write-Host "`n[1/4] Building Standalone cspkg CLI Packager & Remote Agent Daemon..." -ForegroundColor Yellow
 Set-Location $RootDir
 $cspkgPath = Join-Path $BinDir "cspkg.exe"
 go build -ldflags "-s -w" -o "$cspkgPath" ./cmd/cspkg
 Write-Host "[OK] Built bin/cspkg.exe" -ForegroundColor Green
+
+$agentPath = Join-Path $BinDir "config-studio-agent.exe"
+go build -ldflags "-s -w" -o "$agentPath" ./cmd/agent
+Write-Host "[OK] Built bin/config-studio-agent.exe" -ForegroundColor Green
 
 # 2. Build Russian Edition
 if ($Target -eq "all" -or $Target -eq "ru") {
@@ -63,6 +67,7 @@ foreach ($dest in $DistDirs) {
             Copy-Item -Path (Join-Path $BinDir "config-studio-ru-windows-amd64.exe") -Destination $dest -Force -ErrorAction Stop
             Copy-Item -Path (Join-Path $BinDir "config-studio-en-windows-amd64.exe") -Destination $dest -Force -ErrorAction Stop
             Copy-Item -Path (Join-Path $BinDir "cspkg.exe") -Destination $dest -Force -ErrorAction Stop
+            Copy-Item -Path (Join-Path $BinDir "config-studio-agent.exe") -Destination $dest -Force -ErrorAction Stop
             Copy-Item -Path (Join-Path $RootDir "start.bat") -Destination $dest -Force -ErrorAction SilentlyContinue
             Write-Host "[OK] Deployed binaries to: $dest" -ForegroundColor Green
         } catch {

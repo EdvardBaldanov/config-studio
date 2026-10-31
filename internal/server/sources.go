@@ -37,6 +37,12 @@ func (s *Server) handleAddSource(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Trigger background sync for the new source
+	go func() {
+		installed, _ := s.plugins.ListPlugins()
+		_, _ = s.plugins.Sources().SyncSources(installed)
+	}()
+
 	jsonResponse(w, http.StatusCreated, created)
 }
 

@@ -70,11 +70,82 @@ func DefaultSources() []Source {
 			Name:         "Config Studio Community",
 			URL:          "https://raw.githubusercontent.com/EdvardBaldanov/config-studio-community-plugins/main/registry.json",
 			Official:     false,
-			Enabled:      true,
+			Enabled:      false,
 			PluginsCount: 0,
 		},
 	}
 }
+
+var defaultFallbackCatalogJSON = []byte(`[
+  {
+    "id": "web-devkit",
+    "name": "Web DevKit v1.3.2",
+    "version": "1.3.2",
+    "description": "HTML & PHP Live Preview с симуляцией вкладки Chrome, сервер :8085, AST-структура и автодополнение",
+    "author": "Config Studio Team",
+    "downloadUrl": "https://github.com/EdvardBaldanov/config-studio-web-devkit/releases/latest/download/web-devkit.cspkg",
+    "sourceId": "official",
+    "official": true,
+    "icon": "🌐",
+    "tags": ["HTML", "PHP", "Live Preview", "Server"],
+    "locales": {
+      "ru": {
+        "name": "Web DevKit v1.3.2",
+        "description": "Живой предпросмотр HTML/PHP с вкладкой браузера Chrome, веб-сервер :8085, AST-структура и автодополнение Monaco"
+      },
+      "en": {
+        "name": "Web DevKit v1.3.2",
+        "description": "HTML & PHP Live Preview with Chrome browser tab simulation, :8085 server, AST structure, and Monaco completions"
+      }
+    }
+  },
+  {
+    "id": "remote-agent",
+    "name": "Remote Server Agent v2.0",
+    "version": "2.0.0",
+    "description": "Управление парком удаленных серверов (VPS, хосты), двухсоставная TOTP авторизация и переключение между ними из шапки редактора",
+    "author": "Config Studio Team",
+    "downloadUrl": "https://github.com/EdvardBaldanov/config-studio-remote-agent/releases/latest/download/remote-agent.cspkg",
+    "sourceId": "official",
+    "official": true,
+    "icon": "🖥️",
+    "tags": ["Multi-Server", "VPS", "Agent", "Remote", "Security", "TOTP"],
+    "locales": {
+      "ru": {
+        "name": "Удаленный агент серверов v2.0",
+        "description": "Управление парком удаленных серверов, безопасная TOTP авторизация и мгновенное переключение между ними из шапки редактора"
+      },
+      "en": {
+        "name": "Remote Server Agent v2.0",
+        "description": "Manage fleet of remote servers, secure two-tier TOTP authorization and instant switching directly from the header"
+      }
+    }
+  },
+  {
+    "id": "lang-en",
+    "name": "English Language Pack",
+    "version": "1.0.0",
+    "description": "Full English localization for Config Studio UI 🇬🇧",
+    "author": "Edvard Baldanov",
+    "downloadUrl": "https://github.com/EdvardBaldanov/config-studio-lang-en/releases/latest/download/lang-en.cspkg",
+    "sourceId": "official",
+    "official": true,
+    "icon": "🇬🇧",
+    "tags": ["Localization", "Language", "English"]
+  },
+  {
+    "id": "lang-ru",
+    "name": "Русский языковой пакет",
+    "version": "1.0.0",
+    "description": "Полная русская локализация интерфейса Config Studio 🇷🇺",
+    "author": "Edvard Baldanov",
+    "downloadUrl": "https://github.com/EdvardBaldanov/config-studio-lang-ru/releases/latest/download/lang-ru.cspkg",
+    "sourceId": "official",
+    "official": true,
+    "icon": "🇷🇺",
+    "tags": ["Localization", "Language", "Russian"]
+  }
+]`)
 
 func NewSourcesManager(pluginsDir string) (*SourcesManager, error) {
 	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
@@ -90,6 +161,16 @@ func NewSourcesManager(pluginsDir string) (*SourcesManager, error) {
 	}
 
 	sm.loadSources()
+
+	// If catalog_cache.json doesn't exist, initialize with bundled fallback
+	if _, err := os.Stat(sm.cacheFile); os.IsNotExist(err) {
+		_ = os.WriteFile(sm.cacheFile, defaultFallbackCatalogJSON, 0644)
+		// And start background sync with upstream GitHub
+		go func() {
+			_, _ = sm.SyncSources(nil)
+		}()
+	}
+
 	return sm, nil
 }
 

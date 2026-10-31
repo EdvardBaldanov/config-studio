@@ -53,14 +53,24 @@ export function getRemoteEndpoint() {
   return { endpoint: remoteEndpoint, token: remoteToken };
 }
 
+function shouldRouteToRemote(url: string): boolean {
+  if (!remoteEndpoint) return false;
+  // ONLY File System operations and Workspace tree browsing routes should go to the remote agent
+  return url.startsWith('/api/fs/') || url.startsWith('/api/workspaces');
+}
+
 async function webFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const headers = new Headers(options.headers || {});
   headers.set('X-ConfigStudio-Web', '1');
-  if (remoteToken) {
+  headers.set('X-Nonce', `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+
+  const isRemote = shouldRouteToRemote(url);
+  if (isRemote && remoteToken) {
     headers.set('Authorization', `Bearer ${remoteToken}`);
     headers.set('X-API-Key', remoteToken);
   }
-  const baseUrl = remoteEndpoint ? remoteEndpoint.replace(/\/$/, '') : '';
+
+  const baseUrl = isRemote && remoteEndpoint ? remoteEndpoint.replace(/\/$/, '') : '';
   const finalUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
   try {
     const res = await fetch(finalUrl, {
@@ -575,8 +585,7 @@ export const api = {
   },
 
   getAuditExportUrl(): string {
-    const baseUrl = remoteEndpoint ? remoteEndpoint.replace(/\/$/, '') : '';
-    return `${baseUrl}/api/audit/export?web=1`;
+    return `/api/audit/export?web=1`;
   },
 
   // Sources & Catalog APIs
@@ -642,8 +651,7 @@ export const api = {
 
   // Profile Portability APIs
   getProfileExportUrl(): string {
-    const baseUrl = remoteEndpoint ? remoteEndpoint.replace(/\/$/, '') : '';
-    return `${baseUrl}/api/profile/export?web=1`;
+    return `/api/profile/export?web=1`;
   },
 
   async previewProfile(fileContent: string): Promise<ProfilePreview> {

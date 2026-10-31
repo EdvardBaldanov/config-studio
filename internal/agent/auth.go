@@ -90,11 +90,11 @@ func (rc *ReplayCache) purgeOld() {
 	}
 }
 
-// CheckAndRecord verifies that the given step hasn't been used yet.
-func (rc *ReplayCache) CheckAndRecord(keyID string, step int64) bool {
+// CheckAndRecord verifies that the given step/nonce hasn't been used yet.
+func (rc *ReplayCache) CheckAndRecord(keyID string, step int64, nonce string) bool {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	key := fmt.Sprintf("%s:%d", keyID, step)
+	key := fmt.Sprintf("%s:%d:%s", keyID, step, nonce)
 	now := time.Now()
 	if exp, exists := rc.used[key]; exists && now.Before(exp) {
 		return false // Replay detected!
@@ -161,8 +161,16 @@ func (a *Authenticator) AuthenticateRequest(r *http.Request) (*AuthContext, erro
 			return nil, fmt.Errorf("invalid or expired TOTP code")
 		}
 
-		if !a.replayCache.CheckAndRecord(a.master.KeyID, step) {
-			return nil, fmt.Errorf("replay detected: this TOTP code was already used")
+		nonce := r.Header.Get("X-Nonce")
+		if nonce == "" {
+			nonce = r.Header.Get("X-Request-ID")
+		}
+		if nonce == "" {
+			nonce = fmt.Sprintf("%s:%s", r.Method, r.URL.Path)
+		}
+
+		if !a.replayCache.CheckAndRecord(a.master.KeyID, step, nonce) {
+			return nil, fmt.Errorf("replay detected: this request/nonce was already executed")
 		}
 
 		return &AuthContext{
